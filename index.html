@@ -5,6 +5,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/png" href="salome.png" />
+
   <title>Portfolio</title>
 </head>
 
@@ -136,73 +138,73 @@
 
     // Load and render PDF
     async function loadPDF() {
-  try {
-    const loadingTask = pdfjsLib.getDocument(pdfPath);
-    
-    loadingTask.onProgress = function(progress) {
-      if (progress.total > 0) {
-        const percentage = Math.round((progress.loaded / progress.total) * 100);
-        $('#loadingProgress').text(percentage + '%');
-      }
-    };
-    
-    const pdf = await loadingTask.promise;
-    totalPagesCount = pdf.numPages;
-    window.pdfDocument = pdf; // Store globally
-    
-    const flipbook = $('.flipbook');
-    const lastHard = flipbook.find('.hard');
-    
-    // Create placeholders
-    for (let pageNum = 1; pageNum <= totalPagesCount; pageNum++) {
-      const pageDiv = createPlaceholderPage();
-      pageDiv.attr('data-page-num', pageNum);
-      pageDiv.insertBefore(lastHard);
-    }
-    
-    initializeFlipbook();
-    hideLoadingScreen();
-    
-    // Only render first 6 pages
-    console.log('Rendering initial pages...');
-    for (let pageNum = 1; pageNum <= Math.min(6, totalPagesCount); pageNum++) {
-      const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
-      await renderPage(pdf, pageNum, pageDiv);
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-    
-    console.log('Initial pages loaded. Pages will load on demand.');
-    
-    // Load pages on demand when turning
-    $(".flipbook").bind("turning", async function(event, page, view) {
-      const pagesToLoad = new Set();
-      
-      // Current view
-      view.forEach(p => p && !loadedPages.has(p) && pagesToLoad.add(p));
-      
-      // Preload next pages
-      for (let i = 1; i <= 4; i++) {
-        const nextPage = page + i;
-        if (nextPage <= totalPagesCount && !loadedPages.has(nextPage)) {
-          pagesToLoad.add(nextPage);
+      try {
+        const loadingTask = pdfjsLib.getDocument(pdfPath);
+        
+        loadingTask.onProgress = function(progress) {
+          if (progress.total > 0) {
+            const percentage = Math.round((progress.loaded / progress.total) * 100);
+            $('#loadingProgress').text(percentage + '%');
+          }
+        };
+        
+        const pdf = await loadingTask.promise;
+        totalPagesCount = pdf.numPages;
+        window.pdfDocument = pdf; // Store globally
+        
+        const flipbook = $('.flipbook');
+        const lastHard = flipbook.find('.hard');
+        
+        // Create placeholders
+        for (let pageNum = 1; pageNum <= totalPagesCount; pageNum++) {
+          const pageDiv = createPlaceholderPage();
+          pageDiv.attr('data-page-num', pageNum);
+          pageDiv.insertBefore(lastHard);
         }
-      }
-      
-      for (let pageNum of pagesToLoad) {
-        const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
-        if (pageDiv.hasClass('page-loading')) {
-          renderPage(pdf, pageNum, pageDiv);
-          await new Promise(resolve => setTimeout(resolve, 50));
+        
+        initializeFlipbook();
+        hideLoadingScreen();
+        
+        // Only render first 6 pages
+        console.log('Rendering initial pages...');
+        for (let pageNum = 1; pageNum <= Math.min(6, totalPagesCount); pageNum++) {
+          const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
+          await renderPage(pdf, pageNum, pageDiv);
+          await new Promise(resolve => setTimeout(resolve, 100));
         }
+        
+        console.log('Initial pages loaded. Pages will load on demand.');
+        
+        // Load pages on demand when turning
+        $(".flipbook").bind("turning", async function(event, page, view) {
+          const pagesToLoad = new Set();
+          
+          // Current view
+          view.forEach(p => p && !loadedPages.has(p) && pagesToLoad.add(p));
+          
+          // Preload next pages
+          for (let i = 1; i <= 4; i++) {
+            const nextPage = page + i;
+            if (nextPage <= totalPagesCount && !loadedPages.has(nextPage)) {
+              pagesToLoad.add(nextPage);
+            }
+          }
+          
+          for (let pageNum of pagesToLoad) {
+            const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
+            if (pageDiv.hasClass('page-loading')) {
+              renderPage(pdf, pageNum, pageDiv);
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+          }
+        });
+        
+      } catch (error) {
+        console.error('Error loading PDF:', error);
+        $('#loadingText').text('Error loading portfolio');
+        $('#loadingProgress').text('Please refresh the page');
       }
-    });
-    
-  } catch (error) {
-    console.error('Error loading PDF:', error);
-    $('#loadingText').text('Error loading portfolio');
-    $('#loadingProgress').text('Please refresh the page');
-  }
-}
+    }
     function initializeFlipbook() {
       $(".flipbook").turn({
         width: 1188,

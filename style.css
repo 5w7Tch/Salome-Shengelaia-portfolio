@@ -7,6 +7,7 @@
 	font-family: "Poppins", sans-serif;
 }
 
+
 body {
     display: grid;
     place-content: center;
@@ -15,6 +16,16 @@ body {
 	overflow: hidden;
 	background: #000000;
 }
+
+.site-logo {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 120px;     /* change size here */
+  z-index: 9999;
+  pointer-events: none; /* avoids grabbing clicks */
+}
+
 
 .flipbook {
     width: 1188px;
