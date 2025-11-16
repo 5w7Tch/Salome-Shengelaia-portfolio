@@ -46,6 +46,7 @@
     let loadedPages = new Set();
     let totalPagesCount = 0;
     let flipbookInitialized = false;
+    let isAnimating = false; // Animation lock flag
 
     // Update loading progress
     function updateProgress(current, total) {
@@ -77,66 +78,65 @@
     }
 
     // Render a single page
-    // Render a single page
-async function renderPage(pdf, pageNum, pageDiv) {
-  try {
-    const page = await pdf.getPage(pageNum);
-    
-    // Create canvas for this page
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    
-    // Get the viewport at scale 1
-    const viewport = page.getViewport({ scale: 1 });
-    
-    // Calculate device pixel ratio for retina displays
-    const pixelRatio = window.devicePixelRatio || 1;
-    
-    // Calculate scale to fit the page (594px width for half of 1188px)
-    const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
-    const renderScale = displayScale * 2.5 * pixelRatio; // Render at 2.5x for high quality
-    
-    const scaledViewport = page.getViewport({ scale: renderScale });
-    
-    // Set canvas size to the scaled viewport
-    canvas.width = scaledViewport.width;
-    canvas.height = scaledViewport.height;
-    
-    // Set display size to fill the entire page (no CSS resizing)
-    canvas.style.width = '100%';
-    canvas.style.height = '100%';
-    canvas.style.display = 'block';
-    
-    // Scale the context to match device pixel ratio
-    context.scale(pixelRatio, pixelRatio);
-    
-    // Render PDF page to canvas with high quality settings
-    await page.render({
-      canvasContext: context,
-      viewport: page.getViewport({ scale: renderScale / pixelRatio }),
-      intent: 'display',
-      renderInteractiveForms: false,
-      enableWebGL: true
-    }).promise;
-    
-    // Replace placeholder content with canvas
-    pageDiv.empty();
-    pageDiv.removeClass('page-loading');
-    pageDiv.append(canvas);
-    
-    // Mark page as loaded
-    loadedPages.add(pageNum);
-    
-    // Update background loading indicator
-    updateBackgroundLoading(loadedPages.size, totalPagesCount);
-    
-    return true;
-  } catch (error) {
-    console.error(`Error rendering page ${pageNum}:`, error);
-    pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444;"><p>Error loading page</p></div>');
-    return false;
-  }
-}
+    async function renderPage(pdf, pageNum, pageDiv) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        
+        // Create canvas for this page
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
+        // Get the viewport at scale 1
+        const viewport = page.getViewport({ scale: 1 });
+        
+        // Calculate device pixel ratio for retina displays
+        const pixelRatio = window.devicePixelRatio || 1;
+        
+        // Calculate scale to fit the page (594px width for half of 1188px)
+        const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
+        const renderScale = displayScale * 2.5 * pixelRatio; // Render at 2.5x for high quality
+        
+        const scaledViewport = page.getViewport({ scale: renderScale });
+        
+        // Set canvas size to the scaled viewport
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+        
+        // Set display size to fill the entire page (no CSS resizing)
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        canvas.style.display = 'block';
+        
+        // Scale the context to match device pixel ratio
+        context.scale(pixelRatio, pixelRatio);
+        
+        // Render PDF page to canvas with high quality settings
+        await page.render({
+          canvasContext: context,
+          viewport: page.getViewport({ scale: renderScale / pixelRatio }),
+          intent: 'display',
+          renderInteractiveForms: false,
+          enableWebGL: true
+        }).promise;
+        
+        // Replace placeholder content with canvas
+        pageDiv.empty();
+        pageDiv.removeClass('page-loading');
+        pageDiv.append(canvas);
+        
+        // Mark page as loaded
+        loadedPages.add(pageNum);
+        
+        // Update background loading indicator
+        updateBackgroundLoading(loadedPages.size, totalPagesCount);
+        
+        return true;
+      } catch (error) {
+        console.error(`Error rendering page ${pageNum}:`, error);
+        pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444;"><p>Error loading page</p></div>');
+        return false;
+      }
+    }
 
     // Load and render PDF
     async function loadPDF() {
@@ -218,14 +218,30 @@ async function renderPage(pdf, pageNum, pageDiv) {
         height: flipbookHeight,
         autoCenter: true,
         acceleration: true,
-        gradients: !isMobile, // Disable gradients on mobile for better performance
-        display: isMobile ? 'single' : 'double' // Single page view on mobile
+        gradients: !isMobile,
+        display: isMobile ? 'single' : 'double',
+        duration: 600 // Animation duration in ms
       });
 
       flipbookInitialized = true;
-      // Keyboard navigation
-      
+
+      // Listen for animation start and end
+      $(".flipbook").bind("start", function() {
+        isAnimating = true;
+      });
+
+      $(".flipbook").bind("end", function() {
+        isAnimating = false;
+      });
+
+      // Keyboard navigation with animation lock
       $(document).keydown(function(e) {
+        // Prevent action if already animating
+        if (isAnimating) {
+          e.preventDefault();
+          return;
+        }
+
         // Left arrow key
         if (e.keyCode == 37) {
           $('#prevBtn').click();
@@ -239,10 +255,14 @@ async function renderPage(pdf, pageNum, pageDiv) {
         }
       });
 
-      // Navigation buttons with corner peel animation
+      // Navigation buttons with corner peel animation and lock
       $('#prevBtn').click(function() {
+        // Prevent click if already animating
+        if (isAnimating) return;
+
         var page = $(".flipbook").turn("page");
         if (page > 1) {
+          isAnimating = true; // Lock immediately
           if (!isMobile) {
             $(".flipbook").turn("peel", "bl", true);
             setTimeout(function() {
@@ -255,9 +275,13 @@ async function renderPage(pdf, pageNum, pageDiv) {
       });
 
       $('#nextBtn').click(function() {
+        // Prevent click if already animating
+        if (isAnimating) return;
+
         var page = $(".flipbook").turn("page");
         var pages = $(".flipbook").turn("pages");
         if (page < pages) {
+          isAnimating = true; // Lock immediately
           if (!isMobile) {
             $(".flipbook").turn("peel", "br", true);
             setTimeout(function() {
@@ -292,7 +316,7 @@ async function renderPage(pdf, pageNum, pageDiv) {
       $(window).on('resize orientationchange', function() {
         clearTimeout(resizeTimeout);
         resizeTimeout = setTimeout(function() {
-          location.reload(); // Reload on orientation change for best results
+          location.reload();
         }, 500);
       });
     }
@@ -337,6 +361,12 @@ async function renderPage(pdf, pageNum, pageDiv) {
 
     @keyframes spin {
       to { transform: rotate(360deg); }
+    }
+
+    /* Disable pointer events on buttons during animation */
+    .nav-arrow.animating {
+      pointer-events: none;
+      opacity: 0.5;
     }
   </style>
 </body>
