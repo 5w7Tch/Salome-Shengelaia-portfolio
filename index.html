@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="stylesheet" href="style.css" />
+  <title>Portfolio</title>
+</head>
+
+<body>
+  <!-- Loading Screen -->
+  <div class="loading-screen" id="loadingScreen">
+    <div class="loader-container">
+      <div class="loader"></div>
+      <p class="loading-text">Loading Portfolio...</p>
+      <p class="loading-progress" id="loadingProgress">0%</p>
+    </div>
+  </div>
+
+  <!-- Background loading indicator -->
+  <div class="bg-loading-indicator" id="bgLoadingIndicator" style="display: none;">
+    <div class="bg-loader"></div>
+    <span id="bgLoadingText">Loading pages...</span>
+  </div>
+
+  <button class="nav-arrow prev-arrow" id="prevBtn">‹</button>
+  <button class="nav-arrow next-arrow" id="nextBtn">›</button>
+
+  <div class="flipbook">
+    <!-- Dynamic pages will be inserted here -->
+    <div class="hard"></div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script src="jquery.js"></script>
+  <script src="turn.js"></script>
+  <script>
+    // Configure PDF.js worker
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+    // Path to your PDF file
+    const pdfPath = 'PORTFOLIOOO.pdf';
+    let loadedPages = new Set();
+    let totalPagesCount = 0;
+    let flipbookInitialized = false;
+
+    // Update loading progress
+    function updateProgress(current, total) {
+      const percentage = Math.round((current / total) * 100);
+      $('#loadingProgress').text(percentage + '%');
+    }
+
+    // Hide initial loading screen
+    function hideLoadingScreen() {
+      $('#loadingScreen').fadeOut(500, function() {
+        $(this).remove();
+      });
+    }
+
+    // Update background loading indicator
+    function updateBackgroundLoading(current, total) {
+      if (current >= total) {
+        $('#bgLoadingIndicator').fadeOut();
+      } else {
+        $('#bgLoadingText').text(`Loading pages... ${current}/${total}`);
+      }
+    }
+
+    // Create placeholder page
+    function createPlaceholderPage() {
+      const pageDiv = $('<div class="page page-loading"></div>');
+      pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><div><div class="loader" style="margin: 0 auto 20px;"></div><p>Loading page...</p></div></div>');
+      return pageDiv;
+    }
+
+    // Render a single page
+    async function renderPage(pdf, pageNum, pageDiv) {
+      try {
+        const page = await pdf.getPage(pageNum);
+        
+        // Create canvas for this page
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
+        // Get the viewport at scale 1
+        const viewport = page.getViewport({ scale: 1 });
+        
+        // Calculate device pixel ratio for retina displays
+        const pixelRatio = window.devicePixelRatio || 1;
+        
+        // Calculate scale to fit the page (594px width for half of 1188px)
+        const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
+        const renderScale = displayScale * 2.5 * pixelRatio; // Render at 2.5x for high quality
+        
+        const scaledViewport = page.getViewport({ scale: renderScale });
+        
+        // Set canvas size to the scaled viewport
+        canvas.width = scaledViewport.width;
+        canvas.height = scaledViewport.height;
+        
+        // Set display size (CSS pixels)
+        canvas.style.width = (scaledViewport.width / pixelRatio / 2.5) + 'px';
+        canvas.style.height = (scaledViewport.height / pixelRatio / 2.5) + 'px';
+        
+        // Scale the context to match device pixel ratio
+        context.scale(pixelRatio, pixelRatio);
+        
+        // Render PDF page to canvas with high quality settings
+        await page.render({
+          canvasContext: context,
+          viewport: page.getViewport({ scale: renderScale / pixelRatio }),
+          intent: 'display',
+          renderInteractiveForms: false,
+          enableWebGL: true
+        }).promise;
+        
+        // Replace placeholder content with canvas
+        pageDiv.empty();
+        pageDiv.removeClass('page-loading');
+        pageDiv.append(canvas);
+        
+        // Mark page as loaded
+        loadedPages.add(pageNum);
+        
+        // Update background loading indicator
+        updateBackgroundLoading(loadedPages.size, totalPagesCount);
+        
+        return true;
+      } catch (error) {
+        console.error(`Error rendering page ${pageNum}:`, error);
+        pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444;"><p>Error loading page</p></div>');
+        return false;
+      }
+    }
+
+    // Load and render PDF
+    async function loadPDF() {
+      try {
+        const loadingTask = pdfjsLib.getDocument(pdfPath);
+        
+        // Track PDF loading progress
+        loadingTask.onProgress = function(progress) {
+          if (progress.total > 0) {
+            const percentage = Math.round((progress.loaded / progress.total) * 100);
+            $('#loadingProgress').text(percentage + '%');
+          }
+        };
+        
+        const pdf = await loadingTask.promise;
+        totalPagesCount = pdf.numPages;
+        
+        const flipbook = $('.flipbook');
+        const lastHard = flipbook.find('.hard');
+        
+        // Create placeholder pages for all pages
+        for (let pageNum = 1; pageNum <= totalPagesCount; pageNum++) {
+          const pageDiv = createPlaceholderPage();
+          pageDiv.attr('data-page-num', pageNum);
+          pageDiv.insertBefore(lastHard);
+        }
+        
+        // Initialize flipbook immediately with placeholders
+        initializeFlipbook();
+        
+        // Hide initial loading screen
+        hideLoadingScreen();
+        
+        // Show background loading indicator
+        $('#bgLoadingIndicator').fadeIn();
+        
+        // Render first page immediately
+        const firstPageDiv = flipbook.find('.page[data-page-num="1"]');
+        await renderPage(pdf, 1, firstPageDiv);
+        
+        // Render second page (for the initial spread view)
+        if (totalPagesCount > 1) {
+          const secondPageDiv = flipbook.find('.page[data-page-num="2"]');
+          await renderPage(pdf, 2, secondPageDiv);
+        }
+        
+        // Load remaining pages in the background with priority
+        // Priority: pages near the beginning, then the rest
+        const priorityPages = [];
+        const regularPages = [];
+        
+        for (let pageNum = 3; pageNum <= totalPagesCount; pageNum++) {
+          if (pageNum <= 6) {
+            priorityPages.push(pageNum); // Load first 6 pages with priority
+          } else {
+            regularPages.push(pageNum);
+          }
+        }
+        
+        // Load priority pages
+        for (const pageNum of priorityPages) {
+          const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
+          await renderPage(pdf, pageNum, pageDiv);
+          // Small delay to not block UI
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        
+        // Load remaining pages
+        for (const pageNum of regularPages) {
+          const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
+          await renderPage(pdf, pageNum, pageDiv);
+          // Small delay to not block UI
+          await new Promise(resolve => setTimeout(resolve, 10));
+        }
+        
+      } catch (error) {
+        console.error('Error loading PDF:', error);
+        $('#loadingText').text('Error loading portfolio');
+        $('#loadingProgress').text('Please refresh the page');
+      }
+    }
+
+    function initializeFlipbook() {
+      $(".flipbook").turn({
+        width: 1188,
+        height: 840,
+        autoCenter: true,
+        acceleration: true,
+        gradients: true
+      });
+
+      flipbookInitialized = true;
+
+      // Navigation buttons with corner peel animation
+      $('#prevBtn').click(function() {
+        var page = $(".flipbook").turn("page");
+        if (page > 1) {
+          $(".flipbook").turn("peel", "bl", true);
+          setTimeout(function() {
+            $(".flipbook").turn("previous");
+          }, 40);
+        }
+      });
+
+      $('#nextBtn').click(function() {
+        var page = $(".flipbook").turn("page");
+        var pages = $(".flipbook").turn("pages");
+        if (page < pages) {
+          $(".flipbook").turn("peel", "br", true);
+          setTimeout(function() {
+            $(".flipbook").turn("next");
+          }, 40);
+        }
+      });
+
+      // Hide/show arrows based on current page
+      $(".flipbook").bind("turned", function(event, page, view) {
+        if (page == 1) {
+          $('#prevBtn').fadeOut();
+        } else {
+          $('#prevBtn').fadeIn();
+        }
+
+        if (page == $(".flipbook").turn("pages")) {
+          $('#nextBtn').fadeOut();
+        } else {
+          $('#nextBtn').fadeIn();
+        }
+      });
+
+      // Initial state
+      $('#prevBtn').hide();
+    }
+
+    // Load PDF when page is ready
+    $(document).ready(function() {
+      loadPDF();
+    });
+  </script>
+
+  <style>
+    /* Background loading indicator styles */
+    .bg-loading-indicator {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(0, 0, 0, 0.8);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 9999;
+      font-size: 14px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .bg-loader {
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    /* Page loading state */
+    .page-loading {
+      background: #f5f5f5;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</body>
+
+</html>
