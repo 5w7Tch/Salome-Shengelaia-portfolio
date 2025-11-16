@@ -119,32 +119,33 @@ body {
     position: fixed;
     top: 50%;
     transform: translateY(-50%);
-    background: rgba(255, 255, 255, 0.1);
-    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: transparent;
+    border: none;
     color: #fff;
-    font-size: 48px;
+    font-size: 200px;
+    font-weight: 300;
     width: 60px;
     height: 60px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    border-radius: 50%;
-    transition: all 0.3s ease;
+    transition: all 0.4s ease;
     z-index: 1000;
-    backdrop-filter: blur(10px);
     user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
 
 .nav-arrow:hover {
-    background: rgba(255, 255, 255, 0.2);
-    border-color: rgba(255, 255, 255, 0.5);
-    transform: translateY(-50%) scale(1.1);
+    color: #fff;
+    transform: translateY(-50%) scale(1.2);
+    text-shadow: 0 0 20px rgba(255, 255, 255, 0.8),
+                 0 0 40px rgba(255, 255, 255, 0.6);
 }
 
 .nav-arrow:active {
-    transform: translateY(-50%) scale(0.95);
+    transform: translateY(-50%) scale(1.0);
+    text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
 }
 
 .prev-arrow {
@@ -155,6 +156,10 @@ body {
     right: 40px;
 }
 
+.nav-arrow.animating {
+    pointer-events: none;
+    opacity: 0.5;
+}
 /* Remove any shadows or borders from turn.js */
 .flipbook .page,
 .flipbook .own-size,
