@@ -223,6 +223,21 @@ async function renderPage(pdf, pageNum, pageDiv) {
       });
 
       flipbookInitialized = true;
+      // Keyboard navigation
+      
+      $(document).keydown(function(e) {
+        // Left arrow key
+        if (e.keyCode == 37) {
+          $('#prevBtn').click();
+          e.preventDefault();
+        }
+        
+        // Right arrow key
+        if (e.keyCode == 39) {
+          $('#nextBtn').click();
+          e.preventDefault();
+        }
+      });
 
       // Navigation buttons with corner peel animation
       $('#prevBtn').click(function() {
