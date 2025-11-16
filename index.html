@@ -77,64 +77,66 @@
     }
 
     // Render a single page
-    async function renderPage(pdf, pageNum, pageDiv) {
-      try {
-        const page = await pdf.getPage(pageNum);
-        
-        // Create canvas for this page
-        const canvas = document.createElement('canvas');
-        const context = canvas.getContext('2d');
-        
-        // Get the viewport at scale 1
-        const viewport = page.getViewport({ scale: 1 });
-        
-        // Calculate device pixel ratio for retina displays
-        const pixelRatio = window.devicePixelRatio || 1;
-        
-        // Calculate scale to fit the page (594px width for half of 1188px)
-        const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
-        const renderScale = displayScale * 2.5 * pixelRatio; // Render at 2.5x for high quality
-        
-        const scaledViewport = page.getViewport({ scale: renderScale });
-        
-        // Set canvas size to the scaled viewport
-        canvas.width = scaledViewport.width;
-        canvas.height = scaledViewport.height;
-        
-        // Set display size (CSS pixels)
-        canvas.style.width = (scaledViewport.width / pixelRatio / 2.5) + 'px';
-        canvas.style.height = (scaledViewport.height / pixelRatio / 2.5) + 'px';
-        
-        // Scale the context to match device pixel ratio
-        context.scale(pixelRatio, pixelRatio);
-        
-        // Render PDF page to canvas with high quality settings
-        await page.render({
-          canvasContext: context,
-          viewport: page.getViewport({ scale: renderScale / pixelRatio }),
-          intent: 'display',
-          renderInteractiveForms: false,
-          enableWebGL: true
-        }).promise;
-        
-        // Replace placeholder content with canvas
-        pageDiv.empty();
-        pageDiv.removeClass('page-loading');
-        pageDiv.append(canvas);
-        
-        // Mark page as loaded
-        loadedPages.add(pageNum);
-        
-        // Update background loading indicator
-        updateBackgroundLoading(loadedPages.size, totalPagesCount);
-        
-        return true;
-      } catch (error) {
-        console.error(`Error rendering page ${pageNum}:`, error);
-        pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444;"><p>Error loading page</p></div>');
-        return false;
-      }
-    }
+    // Render a single page
+async function renderPage(pdf, pageNum, pageDiv) {
+  try {
+    const page = await pdf.getPage(pageNum);
+    
+    // Create canvas for this page
+    const canvas = document.createElement('canvas');
+    const context = canvas.getContext('2d');
+    
+    // Get the viewport at scale 1
+    const viewport = page.getViewport({ scale: 1 });
+    
+    // Calculate device pixel ratio for retina displays
+    const pixelRatio = window.devicePixelRatio || 1;
+    
+    // Calculate scale to fit the page (594px width for half of 1188px)
+    const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
+    const renderScale = displayScale * 2.5 * pixelRatio; // Render at 2.5x for high quality
+    
+    const scaledViewport = page.getViewport({ scale: renderScale });
+    
+    // Set canvas size to the scaled viewport
+    canvas.width = scaledViewport.width;
+    canvas.height = scaledViewport.height;
+    
+    // Set display size to fill the entire page (no CSS resizing)
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
+    canvas.style.display = 'block';
+    
+    // Scale the context to match device pixel ratio
+    context.scale(pixelRatio, pixelRatio);
+    
+    // Render PDF page to canvas with high quality settings
+    await page.render({
+      canvasContext: context,
+      viewport: page.getViewport({ scale: renderScale / pixelRatio }),
+      intent: 'display',
+      renderInteractiveForms: false,
+      enableWebGL: true
+    }).promise;
+    
+    // Replace placeholder content with canvas
+    pageDiv.empty();
+    pageDiv.removeClass('page-loading');
+    pageDiv.append(canvas);
+    
+    // Mark page as loaded
+    loadedPages.add(pageNum);
+    
+    // Update background loading indicator
+    updateBackgroundLoading(loadedPages.size, totalPagesCount);
+    
+    return true;
+  } catch (error) {
+    console.error(`Error rendering page ${pageNum}:`, error);
+    pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444;"><p>Error loading page</p></div>');
+    return false;
+  }
+}
 
     // Load and render PDF
     async function loadPDF() {
@@ -205,13 +207,19 @@
         $('#loadingProgress').text('Please refresh the page');
       }
     }
+
     function initializeFlipbook() {
+      const isMobile = window.innerWidth <= 768;
+      const flipbookWidth = isMobile ? window.innerWidth : 1188;
+      const flipbookHeight = isMobile ? (window.innerHeight - 80) : 840;
+      
       $(".flipbook").turn({
-        width: 1188,
-        height: 840,
+        width: flipbookWidth,
+        height: flipbookHeight,
         autoCenter: true,
         acceleration: true,
-        gradients: true
+        gradients: !isMobile, // Disable gradients on mobile for better performance
+        display: isMobile ? 'single' : 'double' // Single page view on mobile
       });
 
       flipbookInitialized = true;
@@ -220,10 +228,14 @@
       $('#prevBtn').click(function() {
         var page = $(".flipbook").turn("page");
         if (page > 1) {
-          $(".flipbook").turn("peel", "bl", true);
-          setTimeout(function() {
+          if (!isMobile) {
+            $(".flipbook").turn("peel", "bl", true);
+            setTimeout(function() {
+              $(".flipbook").turn("previous");
+            }, 40);
+          } else {
             $(".flipbook").turn("previous");
-          }, 40);
+          }
         }
       });
 
@@ -231,10 +243,14 @@
         var page = $(".flipbook").turn("page");
         var pages = $(".flipbook").turn("pages");
         if (page < pages) {
-          $(".flipbook").turn("peel", "br", true);
-          setTimeout(function() {
+          if (!isMobile) {
+            $(".flipbook").turn("peel", "br", true);
+            setTimeout(function() {
+              $(".flipbook").turn("next");
+            }, 40);
+          } else {
             $(".flipbook").turn("next");
-          }, 40);
+          }
         }
       });
 
@@ -255,6 +271,15 @@
 
       // Initial state
       $('#prevBtn').hide();
+      
+      // Handle orientation changes
+      let resizeTimeout;
+      $(window).on('resize orientationchange', function() {
+        clearTimeout(resizeTimeout);
+        resizeTimeout = setTimeout(function() {
+          location.reload(); // Reload on orientation change for best results
+        }, 500);
+      });
     }
 
     // Load PDF when page is ready
