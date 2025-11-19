@@ -50,11 +50,17 @@
     let pdfDocument = null;
     let renderQueue = new Map();
     let pageCache = new Map();
-    const MAX_CACHE_SIZE = 12; // Increased cache size
-
-    // Full quality rendering - NO COMPROMISES
-    const RENDER_QUALITY = 3.0; // High quality for all devices
+    
+    // Detect mobile device
+    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Aggressive cache management for mobile
+    const MAX_CACHE_SIZE = isMobileDevice ? 6 : 12; // Smaller cache on mobile
+    const RENDER_QUALITY = isMobileDevice ? 2.0 : 3.0; // Lower quality on mobile to prevent crashes
     const pixelRatio = window.devicePixelRatio || 1;
+
+    // Memory tracking
+    let memoryWarningShown = false;
 
     // Update loading progress
     function updateProgress(current, total) {
@@ -85,48 +91,97 @@
       return pageDiv;
     }
 
-    // Clear old pages from cache
+    // Aggressive cache clearing for mobile
     function clearOldCache(currentPage) {
-      if (pageCache.size > MAX_CACHE_SIZE) {
+      const keepRange = isMobileDevice ? 2 : 3; // Keep fewer pages on mobile
+      
+      if (pageCache.size > MAX_CACHE_SIZE || isMobileDevice) {
         const pagesToKeep = new Set();
-        for (let i = Math.max(1, currentPage - 3); i <= Math.min(totalPagesCount, currentPage + 3); i++) {
+        
+        // Only keep pages very close to current view
+        for (let i = Math.max(1, currentPage - keepRange); i <= Math.min(totalPagesCount, currentPage + keepRange); i++) {
           pagesToKeep.add(i);
         }
 
+        const pagesCleared = [];
         for (let [pageNum, canvas] of pageCache.entries()) {
           if (!pagesToKeep.has(pageNum)) {
+            // Clear canvas completely
             const ctx = canvas.getContext('2d');
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            canvas.width = 0;
+            canvas.height = 0;
             pageCache.delete(pageNum);
-            console.log(`Cleared page ${pageNum} from cache`);
+            pagesCleared.push(pageNum);
+          }
+        }
+        
+        if (pagesCleared.length > 0) {
+          console.log(`🗑️ Cleared ${pagesCleared.length} pages from cache: [${pagesCleared.join(', ')}]`);
+          console.log(`📊 Cache size now: ${pageCache.size}/${MAX_CACHE_SIZE}`);
+          
+          // Force garbage collection hint (browsers may ignore)
+          if (window.gc) {
+            window.gc();
           }
         }
       }
     }
 
-    // Render a single page with FULL QUALITY - NO LIMITS
+    // Clear a specific page from DOM and cache
+    function clearPageFromDOM(pageNum) {
+      const pageDiv = $(`.page[data-page-num="${pageNum}"]`);
+      if (pageDiv.length && !pageDiv.hasClass('page-loading')) {
+        console.log(`🧹 Clearing page ${pageNum} from DOM`);
+        pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><div><div class="loader" style="margin: 0 auto 20px;"></div><p>Loading page...</p></div></div>');
+        pageDiv.addClass('page-loading');
+        loadedPages.delete(pageNum);
+      }
+    }
+
+    // Check memory and warn user
+    function checkMemory() {
+      if (isMobileDevice && performance.memory) {
+        const usedMemory = performance.memory.usedJSHeapSize / 1024 / 1024;
+        const totalMemory = performance.memory.totalJSHeapSize / 1024 / 1024;
+        const percentage = (usedMemory / totalMemory) * 100;
+        
+        console.log(`💾 Memory: ${usedMemory.toFixed(2)}MB / ${totalMemory.toFixed(2)}MB (${percentage.toFixed(1)}%)`);
+        
+        if (percentage > 80 && !memoryWarningShown) {
+          console.warn('⚠️ High memory usage detected, clearing more aggressively');
+          memoryWarningShown = true;
+          // Clear more pages
+          const currentPage = $(".flipbook").turn("page");
+          clearOldCache(currentPage);
+        }
+      }
+    }
+
+    // Render a single page with full quality and safety checks
     async function renderPage(pdf, pageNum, pageDiv, priority = false) {
       // Check if already rendering
       if (renderQueue.has(pageNum)) {
-        console.log(`Page ${pageNum} already rendering, waiting...`);
+        console.log(`⏳ Page ${pageNum} already rendering, waiting...`);
         return renderQueue.get(pageNum);
       }
 
       // Check cache first
-      if (pageCache.has(pageNum)) {
-        console.log(`Page ${pageNum} loaded from cache`);
-        const cachedCanvas = pageCache.get(pageNum).cloneNode(true);
-        pageDiv.empty();
-        pageDiv.removeClass('page-loading');
-        pageDiv.append(cachedCanvas);
-        loadedPages.add(pageNum);
-        updateBackgroundLoading(loadedPages.size, totalPagesCount);
+      if (pageCache.has(pageNum) && !pageDiv.hasClass('page-loading')) {
+        console.log(`✅ Page ${pageNum} loaded from cache`);
         return true;
       }
 
       const renderPromise = (async () => {
         try {
-          console.log(`Starting FULL QUALITY render for page ${pageNum}`);
+          console.log(`🎨 Starting render for page ${pageNum} (priority: ${priority}, mobile: ${isMobileDevice})`);
+          
+          // Clear old cache before rendering new page
+          const currentPage = $(".flipbook").turn("page");
+          clearOldCache(currentPage);
+          
+          // Check memory before rendering
+          checkMemory();
           
           const page = await pdf.getPage(pageNum);
           
@@ -144,51 +199,53 @@
           // Calculate scale to fit the page
           const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
           
-          // FULL QUALITY - multiply by pixel ratio for retina displays
-          const renderScale = displayScale * RENDER_QUALITY * pixelRatio;
+          // Apply quality settings
+          const effectivePixelRatio = isMobileDevice ? Math.min(pixelRatio, 2) : pixelRatio; // Cap at 2x on mobile
+          const renderScale = displayScale * RENDER_QUALITY * effectivePixelRatio;
           
-          console.log(`Page ${pageNum}: Original viewport=${viewport.width}x${viewport.height}, renderScale=${renderScale.toFixed(2)}`);
+          console.log(`📐 Page ${pageNum}: viewport=${viewport.width}x${viewport.height}, scale=${renderScale.toFixed(2)}`);
           
           const scaledViewport = page.getViewport({ scale: renderScale });
           
-          // Set canvas size to FULL scaled viewport
+          // Set canvas size
           canvas.width = scaledViewport.width;
           canvas.height = scaledViewport.height;
           
-          console.log(`Page ${pageNum}: Canvas size=${canvas.width}x${canvas.height}`);
+          console.log(`🖼️ Page ${pageNum}: canvas=${canvas.width}x${canvas.height} (${(canvas.width * canvas.height * 4 / 1024 / 1024).toFixed(2)}MB)`);
           
           // Set display size
           canvas.style.width = '100%';
           canvas.style.height = '100%';
           canvas.style.display = 'block';
           
-          // FULL QUALITY render context - NO RESTRICTIONS
+          // Full quality render context
           const renderContext = {
             canvasContext: context,
             viewport: scaledViewport,
             intent: 'display',
             renderInteractiveForms: true,
-            enableWebGL: true, // Enable WebGL for better performance
+            enableWebGL: !isMobileDevice, // Disable WebGL on mobile for stability
             background: 'white',
-            // NO IMAGE RESTRICTIONS
             imageLayer: null,
             annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS,
             optionalContentConfigPromise: null
           };
 
-          console.log(`Rendering page ${pageNum} at FULL QUALITY...`);
+          console.log(`⚙️ Rendering page ${pageNum}...`);
           
           const renderTask = page.render(renderContext);
           
-          // Wait for render to complete with timeout
+          // Longer timeout for mobile
+          const timeout = isMobileDevice ? 90000 : 60000;
+          
           await Promise.race([
             renderTask.promise,
             new Promise((_, reject) => 
-              setTimeout(() => reject(new Error('Render timeout')), 60000) // 60 second timeout
+              setTimeout(() => reject(new Error(`Render timeout after ${timeout/1000}s`)), timeout)
             )
           ]);
           
-          console.log(`✓ Page ${pageNum} rendered successfully at full quality`);
+          console.log(`✅ Page ${pageNum} rendered successfully`);
           
           // Store in cache
           pageCache.set(pageNum, canvas.cloneNode(true));
@@ -209,19 +266,22 @@
           
           renderQueue.delete(pageNum);
           
-          console.log(`Page ${pageNum} complete (cache size: ${pageCache.size})`);
+          console.log(`✓ Page ${pageNum} complete (cache: ${pageCache.size}/${MAX_CACHE_SIZE})`);
+          
+          // Check memory after render
+          checkMemory();
           
           return true;
         } catch (error) {
-          console.error(`✗ Error rendering page ${pageNum}:`, error);
+          console.error(`❌ Error rendering page ${pageNum}:`, error);
           console.error('Error details:', error.message, error.stack);
           
-          // Show detailed error with retry option
+          // Show detailed error
           pageDiv.html(`<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444; padding: 20px; text-align: center;">
             <div>
               <p style="font-weight: bold; font-size: 16px;">Error loading page ${pageNum}</p>
               <p style="font-size: 12px; margin-top: 10px; opacity: 0.8;">${error.message}</p>
-              <button onclick="location.reload()" style="margin-top: 15px; padding: 10px 20px; cursor: pointer; background: #ff4444; color: white; border: none; border-radius: 4px;">Reload Page</button>
+              <button onclick="location.reload()" style="margin-top: 15px; padding: 10px 20px; cursor: pointer; background: #ff4444; color: white; border: none; border-radius: 4px;">Reload</button>
             </div>
           </div>`);
           
@@ -234,45 +294,43 @@
       return renderPromise;
     }
 
-    // Load and render PDF with FULL QUALITY settings
+    // Load and render PDF
     async function loadPDF() {
       try {
-        console.log('Loading PDF with FULL QUALITY settings - NO RESTRICTIONS');
+        console.log('📄 Loading PDF with optimized settings for', isMobileDevice ? 'MOBILE' : 'DESKTOP');
         
-        // FULL QUALITY PDF LOADING - NO LIMITS
         const loadingTask = pdfjsLib.getDocument({
           url: pdfPath,
-          maxImageSize: -1, // NO LIMIT on image size
+          maxImageSize: -1, // Unlimited
           cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
           cMapPacked: true,
-          disableAutoFetch: false, // Fetch everything
-          disableStream: false, // Enable streaming
-          disableFontFace: false, // Enable all fonts
-          useSystemFonts: false, // Use embedded fonts
+          disableAutoFetch: false,
+          disableStream: false,
+          disableFontFace: false,
+          useSystemFonts: false,
           standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
           isEvalSupported: true,
           useWorkerFetch: true,
-          verbosity: 1 // Enable warnings
+          verbosity: 1
         });
         
         loadingTask.onProgress = function(progress) {
           if (progress.total > 0) {
             const percentage = Math.round((progress.loaded / progress.total) * 100);
             $('#loadingProgress').text(percentage + '%');
-            console.log(`PDF loading: ${percentage}%`);
           }
         };
         
         pdfDocument = await loadingTask.promise;
         totalPagesCount = pdfDocument.numPages;
         
-        console.log(`✓ PDF loaded successfully: ${totalPagesCount} pages`);
-        console.log(`Render quality: ${RENDER_QUALITY}x, Pixel ratio: ${pixelRatio}x`);
+        console.log(`✅ PDF loaded: ${totalPagesCount} pages`);
+        console.log(`📊 Settings: Quality=${RENDER_QUALITY}x, PixelRatio=${pixelRatio}x, Cache=${MAX_CACHE_SIZE}`);
         
         const flipbook = $('.flipbook');
         const lastHard = flipbook.find('.hard');
         
-        // Create placeholders for all pages
+        // Create placeholders
         for (let pageNum = 1; pageNum <= totalPagesCount; pageNum++) {
           const pageDiv = createPlaceholderPage();
           pageDiv.attr('data-page-num', pageNum);
@@ -282,76 +340,83 @@
         initializeFlipbook();
         hideLoadingScreen();
         
-        // Show background loading indicator
         $('#bgLoadingIndicator').fadeIn();
         
-        // Render first 4 pages at full quality
-        console.log('Rendering initial 4 pages at FULL QUALITY...');
+        // Render fewer initial pages on mobile
+        const initialPages = isMobileDevice ? 3 : 4;
+        console.log(`🎨 Rendering initial ${initialPages} pages...`);
         
-        for (let pageNum = 1; pageNum <= Math.min(4, totalPagesCount); pageNum++) {
+        for (let pageNum = 1; pageNum <= Math.min(initialPages, totalPagesCount); pageNum++) {
           const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
           await renderPage(pdfDocument, pageNum, pageDiv, true);
-          // Longer delay to ensure complete rendering
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, 400));
         }
         
-        console.log('✓ Initial pages loaded at FULL QUALITY');
+        console.log('✅ Initial pages loaded');
         
-        // Load pages on demand when turning
+        // Handle page turning with aggressive cleanup
         $(".flipbook").bind("turning", async function(event, page, view) {
-          console.log(`Turning to page ${page}, view: [${view.join(', ')}]`);
+          console.log(`📖 Turning to page ${page}, view: [${view.join(', ')}]`);
+          
+          // Aggressive cleanup on mobile
+          if (isMobileDevice) {
+            // Clear pages far from current view
+            for (let pageNum = 1; pageNum <= totalPagesCount; pageNum++) {
+              if (Math.abs(pageNum - page) > 3 && loadedPages.has(pageNum)) {
+                clearPageFromDOM(pageNum);
+              }
+            }
+          }
+          
+          // Clear cache
+          clearOldCache(page);
           
           const pagesToLoad = [];
-          
-          // Clear old cache
-          clearOldCache(page);
           
           // Current visible pages (highest priority)
           view.forEach(p => {
             if (p && !loadedPages.has(p) && !renderQueue.has(p)) {
               pagesToLoad.push({ page: p, priority: 10 });
-              console.log(`Need to load visible page ${p}`);
             }
           });
           
-          // Preload next 3 pages
-          for (let i = 1; i <= 3; i++) {
+          // Preload next pages (fewer on mobile)
+          const preloadNext = isMobileDevice ? 2 : 3;
+          for (let i = 1; i <= preloadNext; i++) {
             const nextPage = page + i;
             if (nextPage <= totalPagesCount && !loadedPages.has(nextPage) && !renderQueue.has(nextPage)) {
               pagesToLoad.push({ page: nextPage, priority: 7 });
             }
           }
           
-          // Preload previous 2 pages
-          for (let i = 1; i <= 2; i++) {
+          // Preload previous pages
+          const preloadPrev = isMobileDevice ? 1 : 2;
+          for (let i = 1; i <= preloadPrev; i++) {
             const prevPage = page - i;
             if (prevPage >= 1 && !loadedPages.has(prevPage) && !renderQueue.has(prevPage)) {
               pagesToLoad.push({ page: prevPage, priority: 5 });
             }
           }
           
-          // Sort by priority
           pagesToLoad.sort((a, b) => b.priority - a.priority);
           
-          // Load pages sequentially at full quality
+          // Load pages with longer delays on mobile
           for (let { page: pageNum, priority } of pagesToLoad) {
             const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
             if (pageDiv.hasClass('page-loading')) {
               await renderPage(pdfDocument, pageNum, pageDiv, priority >= 8);
-              // Delay between renders to prevent browser overload
-              const delay = priority >= 8 ? 200 : 300;
+              const delay = isMobileDevice ? (priority >= 8 ? 300 : 500) : (priority >= 8 ? 200 : 300);
               await new Promise(resolve => setTimeout(resolve, delay));
             }
           }
         });
         
-        // Trigger initial turning event to preload
         $(".flipbook").trigger("turning", [1, [1, 2]]);
         
       } catch (error) {
-        console.error('✗ Error loading PDF:', error);
+        console.error('❌ Error loading PDF:', error);
         $('#loadingText').text('Error loading portfolio');
-        $('#loadingProgress').text(error.message || 'Please refresh the page');
+        $('#loadingProgress').text(error.message || 'Please refresh');
       }
     }
 
@@ -377,22 +442,16 @@
       flipbookWidth = Math.min(flipbookWidth, originalWidth);
       flipbookHeight = Math.min(flipbookHeight, originalHeight);
       
-      console.log('Initializing flipbook:', { 
-        width: flipbookWidth, 
-        height: flipbookHeight,
-        isMobile: isMobile,
-        renderQuality: RENDER_QUALITY,
-        pixelRatio: pixelRatio
-      });
+      console.log('🎬 Initializing flipbook:', { width: flipbookWidth, height: flipbookHeight });
       
       $(".flipbook").turn({
         width: flipbookWidth,
         height: flipbookHeight,
         autoCenter: true,
-        acceleration: true,
-        gradients: true,
+        acceleration: !isMobileDevice, // Disable on mobile
+        gradients: !isMobileDevice, // Disable on mobile
         display: 'double',
-        duration: 600
+        duration: isMobileDevice ? 400 : 600
       });
 
       flipbookInitialized = true;
@@ -410,12 +469,10 @@
           e.preventDefault();
           return;
         }
-
         if (e.keyCode == 37) {
           $('#prevBtn').click();
           e.preventDefault();
         }
-        
         if (e.keyCode == 39) {
           $('#nextBtn').click();
           e.preventDefault();
@@ -424,28 +481,34 @@
 
       $('#prevBtn').click(function() {
         if (isAnimating) return;
-
         var page = $(".flipbook").turn("page");
         if (page > 1) {
           isAnimating = true;
-          $(".flipbook").turn("peel", "bl", true);
-          setTimeout(function() {
+          if (!isMobileDevice) {
+            $(".flipbook").turn("peel", "bl", true);
+            setTimeout(function() {
+              $(".flipbook").turn("previous");
+            }, 40);
+          } else {
             $(".flipbook").turn("previous");
-          }, 40);
+          }
         }
       });
 
       $('#nextBtn').click(function() {
         if (isAnimating) return;
-
         var page = $(".flipbook").turn("page");
         var pages = $(".flipbook").turn("pages");
         if (page < pages) {
           isAnimating = true;
-          $(".flipbook").turn("peel", "br", true);
-          setTimeout(function() {
+          if (!isMobileDevice) {
+            $(".flipbook").turn("peel", "br", true);
+            setTimeout(function() {
+              $(".flipbook").turn("next");
+            }, 40);
+          } else {
             $(".flipbook").turn("next");
-          }, 40);
+          }
         }
       });
 
@@ -455,7 +518,6 @@
         } else {
           $('#prevBtn').fadeIn();
         }
-
         if (page == $(".flipbook").turn("pages")) {
           $('#nextBtn').fadeOut();
         } else {
@@ -474,7 +536,6 @@
       });
     }
 
-    // Cleanup on page unload
     window.addEventListener('beforeunload', function() {
       if (pdfDocument) {
         pdfDocument.destroy();
