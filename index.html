@@ -313,7 +313,7 @@
           
           // On mobile, unload pages that are far from current view
           if (isMobile) {
-            const unloadDistance = 5; // Keep only pages within 5 pages of current
+            const unloadDistance = 1; // Keep only pages within 5 pages of current
             loadedPages.forEach(loadedPage => {
               if (Math.abs(loadedPage - page) > unloadDistance) {
                 unloadPage(loadedPage);
