@@ -3,7 +3,7 @@
 
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/png" href="salome.png" />
 
@@ -209,27 +209,40 @@
     }
 
     function initializeFlipbook() {
-      // Calculate dimensions to fit screen while maintaining aspect ratio
-      const aspectRatio = 1188 / 840; // Original width/height ratio (double-page spread)
-      const availableWidth = window.innerWidth - 40; // Leave some margin
-      const availableHeight = window.innerHeight - 100; // Leave margin for navigation
+      // Original dimensions for double-page spread
+      const originalWidth = 1188;
+      const originalHeight = 840;
+      const aspectRatio = originalWidth / originalHeight;
+      
+      // Get available space
+      const isMobile = window.innerWidth <= 768;
+      const availableWidth = window.innerWidth - (isMobile ? 0 : 80); // Less margin on mobile
+      const availableHeight = window.innerHeight - (isMobile ? 80 : 100);
       
       let flipbookWidth, flipbookHeight;
       
-      // Calculate size based on available space while maintaining aspect ratio
+      // Calculate dimensions maintaining aspect ratio
       if (availableWidth / availableHeight > aspectRatio) {
-        // Height is the limiting factor
+        // Height is limiting
         flipbookHeight = availableHeight;
         flipbookWidth = flipbookHeight * aspectRatio;
       } else {
-        // Width is the limiting factor
+        // Width is limiting
         flipbookWidth = availableWidth;
         flipbookHeight = flipbookWidth / aspectRatio;
       }
       
-      // Don't exceed original dimensions on large screens
-      flipbookWidth = Math.min(flipbookWidth, 1188);
-      flipbookHeight = Math.min(flipbookHeight, 840);
+      // Don't exceed original size on large screens
+      flipbookWidth = Math.min(flipbookWidth, originalWidth);
+      flipbookHeight = Math.min(flipbookHeight, originalHeight);
+      
+      console.log('Initializing flipbook:', { 
+        width: flipbookWidth, 
+        height: flipbookHeight,
+        isMobile: isMobile,
+        availableWidth: availableWidth,
+        availableHeight: availableHeight
+      });
       
       $(".flipbook").turn({
         width: flipbookWidth,
@@ -237,8 +250,8 @@
         autoCenter: true,
         acceleration: true,
         gradients: true,
-        display: 'double', // Always use double-page display
-        duration: 600 // Animation duration in ms
+        display: 'double', // Always double-page
+        duration: 600
       });
 
       flipbookInitialized = true;

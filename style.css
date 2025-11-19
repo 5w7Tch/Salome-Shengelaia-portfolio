@@ -27,8 +27,7 @@ body {
 }
 
 .flipbook {
-    width: 1188px;
-    height: 840px;
+    /* Dimensions are set dynamically by JavaScript */
     max-width: 100%;
     max-height: 100%;
 }
@@ -160,6 +159,7 @@ body {
     pointer-events: none;
     opacity: 0.5;
 }
+
 /* Remove any shadows or borders from turn.js */
 .flipbook .page,
 .flipbook .own-size,
@@ -216,9 +216,9 @@ body {
         left: 10px;
     }
     
+    /* Don't override dimensions - let JavaScript handle it */
     .flipbook {
-        width: 100vw !important;
-        height: calc(100vh - 80px) !important;
+        /* Size is set by JS */
     }
     
     .nav-arrow {
@@ -303,10 +303,6 @@ body {
 
 /* Landscape mobile optimization */
 @media screen and (max-height: 500px) and (orientation: landscape) {
-    .flipbook {
-        height: calc(100vh - 40px) !important;
-    }
-    
     .nav-arrow {
         width: 35px;
         height: 35px;
