@@ -209,17 +209,35 @@
     }
 
     function initializeFlipbook() {
-      const isMobile = window.innerWidth <= 768;
-      const flipbookWidth = isMobile ? window.innerWidth : 1188;
-      const flipbookHeight = isMobile ? (window.innerHeight - 80) : 840;
+      // Calculate dimensions to fit screen while maintaining aspect ratio
+      const aspectRatio = 1188 / 840; // Original width/height ratio (double-page spread)
+      const availableWidth = window.innerWidth - 40; // Leave some margin
+      const availableHeight = window.innerHeight - 100; // Leave margin for navigation
+      
+      let flipbookWidth, flipbookHeight;
+      
+      // Calculate size based on available space while maintaining aspect ratio
+      if (availableWidth / availableHeight > aspectRatio) {
+        // Height is the limiting factor
+        flipbookHeight = availableHeight;
+        flipbookWidth = flipbookHeight * aspectRatio;
+      } else {
+        // Width is the limiting factor
+        flipbookWidth = availableWidth;
+        flipbookHeight = flipbookWidth / aspectRatio;
+      }
+      
+      // Don't exceed original dimensions on large screens
+      flipbookWidth = Math.min(flipbookWidth, 1188);
+      flipbookHeight = Math.min(flipbookHeight, 840);
       
       $(".flipbook").turn({
         width: flipbookWidth,
         height: flipbookHeight,
         autoCenter: true,
         acceleration: true,
-        gradients: !isMobile,
-        display: isMobile ? 'single' : 'double',
+        gradients: true,
+        display: 'double', // Always use double-page display
         duration: 600 // Animation duration in ms
       });
 
@@ -263,14 +281,10 @@
         var page = $(".flipbook").turn("page");
         if (page > 1) {
           isAnimating = true; // Lock immediately
-          if (!isMobile) {
-            $(".flipbook").turn("peel", "bl", true);
-            setTimeout(function() {
-              $(".flipbook").turn("previous");
-            }, 40);
-          } else {
+          $(".flipbook").turn("peel", "bl", true);
+          setTimeout(function() {
             $(".flipbook").turn("previous");
-          }
+          }, 40);
         }
       });
 
@@ -282,14 +296,10 @@
         var pages = $(".flipbook").turn("pages");
         if (page < pages) {
           isAnimating = true; // Lock immediately
-          if (!isMobile) {
-            $(".flipbook").turn("peel", "br", true);
-            setTimeout(function() {
-              $(".flipbook").turn("next");
-            }, 40);
-          } else {
+          $(".flipbook").turn("peel", "br", true);
+          setTimeout(function() {
             $(".flipbook").turn("next");
-          }
+          }, 40);
         }
       });
 
