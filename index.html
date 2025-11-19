@@ -153,6 +153,29 @@
       }
     }
 
+    // Unload a page to free memory
+    function unloadPage(pageNum) {
+      const flipbook = $('.flipbook');
+      const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
+      
+      if (pageDiv.length && !pageDiv.hasClass('page-loading')) {
+        // Replace with placeholder
+        pageDiv.empty();
+        pageDiv.addClass('page-loading');
+        pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><div><div class="loader" style="margin: 0 auto 20px;"></div><p>Loading page...</p></div></div>');
+        
+        // Remove from loaded pages
+        loadedPages.delete(pageNum);
+        
+        console.log(`Unloaded page ${pageNum} to free memory`);
+      }
+    }
+
+    // Check if device is mobile
+    function isMobileDevice() {
+      return window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    }
+
     // Download PDF with progress
     async function downloadPDF() {
       const downloadBtn = $('#downloadBtn');
@@ -247,36 +270,63 @@
         initializeFlipbook();
         hideLoadingScreen();
         
-        // Only render first 6 pages
-        console.log('Rendering initial pages...');
-        for (let pageNum = 1; pageNum <= Math.min(6, totalPagesCount); pageNum++) {
+        // Load fewer initial pages on mobile
+        const isMobile = isMobileDevice();
+        const initialPageCount = isMobile ? 3 : 6;
+        
+        console.log(`Rendering initial ${initialPageCount} pages...`);
+        for (let pageNum = 1; pageNum <= Math.min(initialPageCount, totalPagesCount); pageNum++) {
           const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
           await renderPage(pdf, pageNum, pageDiv);
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, isMobile ? 150 : 100));
         }
         
         console.log('Initial pages loaded. Pages will load on demand.');
         
         // Load pages on demand when turning
         $(".flipbook").bind("turning", async function(event, page, view) {
+          const isMobile = isMobileDevice();
           const pagesToLoad = new Set();
+          const pagesToKeep = new Set();
           
           // Current view
-          view.forEach(p => p && !loadedPages.has(p) && pagesToLoad.add(p));
+          view.forEach(p => {
+            if (p) {
+              pagesToKeep.add(p);
+              if (!loadedPages.has(p)) {
+                pagesToLoad.add(p);
+              }
+            }
+          });
           
-          // Preload next pages
-          for (let i = 1; i <= 4; i++) {
+          // Preload next pages (fewer on mobile)
+          const preloadCount = isMobile ? 2 : 4;
+          for (let i = 1; i <= preloadCount; i++) {
             const nextPage = page + i;
-            if (nextPage <= totalPagesCount && !loadedPages.has(nextPage)) {
-              pagesToLoad.add(nextPage);
+            if (nextPage <= totalPagesCount) {
+              pagesToKeep.add(nextPage);
+              if (!loadedPages.has(nextPage)) {
+                pagesToLoad.add(nextPage);
+              }
             }
           }
           
+          // On mobile, unload pages that are far from current view
+          if (isMobile) {
+            const unloadDistance = 5; // Keep only pages within 5 pages of current
+            loadedPages.forEach(loadedPage => {
+              if (Math.abs(loadedPage - page) > unloadDistance) {
+                unloadPage(loadedPage);
+              }
+            });
+          }
+          
+          // Load required pages
           for (let pageNum of pagesToLoad) {
             const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
             if (pageDiv.hasClass('page-loading')) {
               renderPage(pdf, pageNum, pageDiv);
-              await new Promise(resolve => setTimeout(resolve, 50));
+              await new Promise(resolve => setTimeout(resolve, isMobile ? 100 : 50));
             }
           }
         });
@@ -421,6 +471,13 @@
 
       // Initial state
       $('#prevBtn').hide();
+      
+      // // Constant peel animation every second
+      // setInterval(function() {
+      //   if (!isAnimating) {
+      //     $(".flipbook").turn("peel", "br", true);
+      //   }
+      // }, 1000);
       
       // Handle orientation changes
       let resizeTimeout;
