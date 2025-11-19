@@ -71,11 +71,13 @@
 
     // Update background loading indicator
     function updateBackgroundLoading(current, total) {
-      if (current >= total) {
-        $('#bgLoadingIndicator').fadeOut();
-      } else {
-        $('#bgLoadingText').text(`Loading pages... ${current}/${total}`);
-      }
+      $('#bgLoadingIndicator').fadeOut();
+
+      // if (current >= total) {
+      //   $('#bgLoadingIndicator').fadeOut();
+      // } else {
+      //   $('#bgLoadingText').text(`Loading pages... ${current}/${total}`);
+      // }
     }
 
     // Create placeholder page
