@@ -50,11 +50,11 @@
     let pdfDocument = null;
     let renderQueue = new Map(); // Track pages being rendered
     let pageCache = new Map(); // Cache rendered canvases
-    const MAX_CACHE_SIZE = 10; // Maximum pages to keep in memory
+    const MAX_CACHE_SIZE = 8; // Maximum pages to keep in memory (reduced for stability)
 
     // Detect if mobile device
     const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    const RENDER_QUALITY = isMobileDevice ? 1.5 : 1.5; // Lower quality on mobile for speed
+    const RENDER_QUALITY = isMobileDevice ? 1.8 : 2.5; // Better quality on mobile while still optimized
 
     // Update loading progress
     function updateProgress(current, total) {
@@ -71,7 +71,7 @@
 
     // Update background loading indicator
     function updateBackgroundLoading(current, total) {
-      $('#bgLoadingIndicator').fadeOut();
+        $('#bgLoadingIndicator').fadeOut();
 
       // if (current >= total) {
       //   $('#bgLoadingIndicator').fadeOut();
@@ -92,7 +92,7 @@
       if (pageCache.size > MAX_CACHE_SIZE) {
         // Keep pages around current view, remove others
         const pagesToKeep = new Set();
-        for (let i = Math.max(1, currentPage - 3); i <= Math.min(totalPagesCount, currentPage + 3); i++) {
+        for (let i = Math.max(1, currentPage - 2); i <= Math.min(totalPagesCount, currentPage + 2); i++) {
           pagesToKeep.add(i);
         }
 
@@ -108,11 +108,11 @@
       }
     }
 
-    // Render a single page with optimization
+    // Render a single page with optimization and image support
     async function renderPage(pdf, pageNum, pageDiv, priority = false) {
       // Check if already rendering
       if (renderQueue.has(pageNum)) {
-        console.log(`Page ${pageNum} already rendering, skipping...`);
+        console.log(`Page ${pageNum} already rendering, waiting...`);
         return renderQueue.get(pageNum);
       }
 
@@ -130,13 +130,15 @@
 
       const renderPromise = (async () => {
         try {
+          console.log(`Starting render for page ${pageNum} (priority: ${priority})`);
+          
           const page = await pdf.getPage(pageNum);
           
           // Create canvas for this page
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d', { 
             alpha: false,
-            desynchronized: true 
+            willReadFrequently: false
           });
           
           // Get the viewport at scale 1
@@ -147,7 +149,7 @@
           
           // Calculate scale to fit the page
           const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
-          const renderScale = displayScale * RENDER_QUALITY * (priority ? 1 : 0.8); // Slightly lower for background loads
+          const renderScale = displayScale * RENDER_QUALITY;
           
           const scaledViewport = page.getViewport({ scale: renderScale });
           
@@ -160,22 +162,27 @@
           canvas.style.height = '100%';
           canvas.style.display = 'block';
           
-          // Render PDF page with optimizations
+          // Render PDF page with full image support
           const renderContext = {
             canvasContext: context,
             viewport: scaledViewport,
             intent: 'display',
             renderInteractiveForms: false,
-            enableWebGL: false, // Disable WebGL for better compatibility
-            background: 'white'
+            enableWebGL: false,
+            background: 'white',
+            // Ensure images are rendered
+            imageLayer: null,
+            annotationMode: pdfjsLib.AnnotationMode.ENABLE
           };
 
-          // Use lower quality for non-priority renders
-          if (!priority) {
-            renderContext.intent = 'print'; // Sometimes faster
-          }
-
-          await page.render(renderContext).promise;
+          console.log(`Rendering page ${pageNum} at scale ${renderScale.toFixed(2)}...`);
+          
+          const renderTask = page.render(renderContext);
+          
+          // Wait for render to complete
+          await renderTask.promise;
+          
+          console.log(`Page ${pageNum} rendered successfully`);
           
           // Store in cache
           pageCache.set(pageNum, canvas.cloneNode(true));
@@ -196,12 +203,22 @@
           
           renderQueue.delete(pageNum);
           
-          console.log(`Page ${pageNum} rendered successfully (cache size: ${pageCache.size})`);
+          console.log(`Page ${pageNum} complete (cache size: ${pageCache.size})`);
           
           return true;
         } catch (error) {
           console.error(`Error rendering page ${pageNum}:`, error);
-          pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444;"><p>Error loading page</p></div>');
+          console.error('Error details:', error.message, error.stack);
+          
+          // Show more detailed error
+          pageDiv.html(`<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444; padding: 20px; text-align: center;">
+            <div>
+              <p style="font-weight: bold;">Error loading page ${pageNum}</p>
+              <p style="font-size: 12px; margin-top: 10px;">${error.message}</p>
+              <button onclick="location.reload()" style="margin-top: 15px; padding: 8px 16px; cursor: pointer;">Reload Page</button>
+            </div>
+          </div>`);
+          
           renderQueue.delete(pageNum);
           return false;
         }
@@ -214,14 +231,19 @@
     // Load and render PDF with chunked loading
     async function loadPDF() {
       try {
+        // More permissive loading settings for mobile
         const loadingTask = pdfjsLib.getDocument({
           url: pdfPath,
-          maxImageSize: isMobileDevice ? 1024 * 1024 : 4096 * 4096, // Limit image size on mobile
+          maxImageSize: isMobileDevice ? 8 * 1024 * 1024 : -1, // 8MB limit on mobile, unlimited on desktop
           cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
           cMapPacked: true,
-          disableAutoFetch: true, // Don't fetch all pages at once
+          disableAutoFetch: false, // Allow auto-fetch to ensure images load
           disableStream: false, // Enable streaming
-          disableFontFace: isMobileDevice, // Disable custom fonts on mobile for speed
+          disableFontFace: false, // Keep fonts enabled
+          useSystemFonts: isMobileDevice, // Use system fonts on mobile
+          standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
+          isEvalSupported: false,
+          useWorkerFetch: false
         });
         
         loadingTask.onProgress = function(progress) {
@@ -234,7 +256,8 @@
         pdfDocument = await loadingTask.promise;
         totalPagesCount = pdfDocument.numPages;
         
-        console.log(`PDF loaded: ${totalPagesCount} pages (${(pdfDocument._pdfInfo.length / 1024 / 1024).toFixed(2)} MB)`);
+        console.log(`PDF loaded: ${totalPagesCount} pages`);
+        console.log(`Mobile device: ${isMobileDevice}, Render quality: ${RENDER_QUALITY}x`);
         
         const flipbook = $('.flipbook');
         const lastHard = flipbook.find('.hard');
@@ -252,13 +275,15 @@
         // Show background loading indicator
         $('#bgLoadingIndicator').fadeIn();
         
-        // Only render first 2-4 pages initially (high priority)
-        const initialPages = isMobileDevice ? 2 : 4;
+        // Render first 3 pages initially with priority
+        const initialPages = isMobileDevice ? 3 : 4;
         console.log(`Rendering initial ${initialPages} pages with high priority...`);
         
         for (let pageNum = 1; pageNum <= Math.min(initialPages, totalPagesCount); pageNum++) {
           const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
           await renderPage(pdfDocument, pageNum, pageDiv, true);
+          // Small delay to prevent overwhelming the browser
+          await new Promise(resolve => setTimeout(resolve, 150));
         }
         
         console.log('Initial pages loaded. Additional pages will load on demand.');
@@ -277,32 +302,31 @@
             }
           });
           
-          // Preload next 2 pages (medium priority)
+          // Preload next 2 pages (high priority)
           for (let i = 1; i <= 2; i++) {
             const nextPage = page + i;
             if (nextPage <= totalPagesCount && !loadedPages.has(nextPage) && !renderQueue.has(nextPage)) {
-              pagesToLoad.push({ page: nextPage, priority: 5 });
+              pagesToLoad.push({ page: nextPage, priority: 8 });
             }
           }
           
-          // Preload previous page (low priority)
+          // Preload previous page (medium priority)
           const prevPage = page - 1;
           if (prevPage >= 1 && !loadedPages.has(prevPage) && !renderQueue.has(prevPage)) {
-            pagesToLoad.push({ page: prevPage, priority: 3 });
+            pagesToLoad.push({ page: prevPage, priority: 5 });
           }
           
           // Sort by priority
           pagesToLoad.sort((a, b) => b.priority - a.priority);
           
-          // Load pages with delays between renders
+          // Load pages sequentially with delays
           for (let { page: pageNum, priority } of pagesToLoad) {
             const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
             if (pageDiv.hasClass('page-loading')) {
-              renderPage(pdfDocument, pageNum, pageDiv, priority > 8);
-              // Add small delay between renders to prevent blocking
-              if (priority < 10) {
-                await new Promise(resolve => setTimeout(resolve, 100));
-              }
+              await renderPage(pdfDocument, pageNum, pageDiv, priority >= 8);
+              // Delay between renders based on priority
+              const delay = priority >= 8 ? 100 : 200;
+              await new Promise(resolve => setTimeout(resolve, delay));
             }
           }
         });
@@ -313,7 +337,7 @@
       } catch (error) {
         console.error('Error loading PDF:', error);
         $('#loadingText').text('Error loading portfolio');
-        $('#loadingProgress').text('Please refresh the page');
+        $('#loadingProgress').text(error.message || 'Please refresh the page');
       }
     }
 
@@ -351,10 +375,10 @@
         width: flipbookWidth,
         height: flipbookHeight,
         autoCenter: true,
-        acceleration: !isMobileDevice, // Disable acceleration on mobile
-        gradients: !isMobileDevice, // Disable gradients on mobile for performance
+        acceleration: !isMobileDevice,
+        gradients: !isMobileDevice,
         display: 'double',
-        duration: isMobileDevice ? 400 : 600 // Faster animation on mobile
+        duration: isMobileDevice ? 400 : 600
       });
 
       flipbookInitialized = true;
