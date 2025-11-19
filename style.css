@@ -180,6 +180,63 @@ body {
     -webkit-tap-highlight-color: transparent;
 }
 
+/* Pagination Dots */
+.pagination-dots {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    z-index: 10000;
+}
+
+.pagination-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.3);
+    transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+}
+
+.pagination-dot.active {
+    width: 10px;
+    height: 10px;
+    background: rgba(255, 255, 255, 1);
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.8),
+                0 0 24px rgba(255, 255, 255, 0.4);
+}
+
+.pagination-dot.near {
+    width: 8px;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.5);
+}
+
+.pagination-dot.far {
+    width: 5px;
+    height: 5px;
+    background: rgba(255, 255, 255, 0.4);
+}
+
+.pagination-dot.hidden {
+    opacity: 0;
+    transform: scale(0);
+    width: 0;
+    margin: 0;
+    padding: 0;
+}
+
+.pagination-dot:hover:not(.hidden) {
+    background: rgba(255, 255, 255, 0.9);
+    transform: scale(1.2);
+}
+
 .download-btn svg {
     width: 28px;
     height: 28px;
@@ -304,6 +361,31 @@ body {
         right: 25px;
     }
     
+    .pagination-dots {
+        bottom: 25px;
+        gap: 5px;
+    }
+    
+    .pagination-dot {
+        width: 5px;
+        height: 5px;
+    }
+    
+    .pagination-dot.active {
+        width: 9px;
+        height: 9px;
+    }
+    
+    .pagination-dot.near {
+        width: 7px;
+        height: 7px;
+    }
+    
+    .pagination-dot.far {
+        width: 4px;
+        height: 4px;
+    }
+    
     .download-btn svg {
         width: 24px;
         height: 24px;
@@ -356,6 +438,31 @@ body {
         height: 42px;
         bottom: 20px;
         right: 20px;
+    }
+    
+    .pagination-dots {
+        bottom: 20px;
+        gap: 4px;
+    }
+    
+    .pagination-dot {
+        width: 4px;
+        height: 4px;
+    }
+    
+    .pagination-dot.active {
+        width: 8px;
+        height: 8px;
+    }
+    
+    .pagination-dot.near {
+        width: 6px;
+        height: 6px;
+    }
+    
+    .pagination-dot.far {
+        width: 3px;
+        height: 3px;
     }
     
     .download-btn svg {
@@ -419,6 +526,31 @@ body {
         right: 15px;
     }
     
+    .pagination-dots {
+        bottom: 15px;
+        gap: 3px;
+    }
+    
+    .pagination-dot {
+        width: 3px;
+        height: 3px;
+    }
+    
+    .pagination-dot.active {
+        width: 7px;
+        height: 7px;
+    }
+    
+    .pagination-dot.near {
+        width: 5px;
+        height: 5px;
+    }
+    
+    .pagination-dot.far {
+        width: 3px;
+        height: 3px;
+    }
+    
     .download-btn svg {
         width: 20px;
         height: 20px;
@@ -467,6 +599,31 @@ body {
         height: 35px;
         bottom: 10px;
         right: 10px;
+    }
+    
+    .pagination-dots {
+        bottom: 10px;
+        gap: 3px;
+    }
+    
+    .pagination-dot {
+        width: 3px;
+        height: 3px;
+    }
+    
+    .pagination-dot.active {
+        width: 6px;
+        height: 6px;
+    }
+    
+    .pagination-dot.near {
+        width: 5px;
+        height: 5px;
+    }
+    
+    .pagination-dot.far {
+        width: 2px;
+        height: 2px;
     }
     
     .download-btn svg {

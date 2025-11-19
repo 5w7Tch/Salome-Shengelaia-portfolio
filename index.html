@@ -39,6 +39,9 @@
     <div class="download-progress" id="downloadProgress"></div>
   </button>
 
+  <!-- Pagination Dots -->
+  <div class="pagination-dots" id="paginationDots"></div>
+
   <div class="flipbook">
     <!-- Dynamic pages will be inserted here -->
     <div class="hard"></div>
@@ -333,6 +336,11 @@
 
       flipbookInitialized = true;
 
+      // Generate pagination dots
+      const totalPages = $(".flipbook").turn("pages");
+      generatePaginationDots(totalPages);
+      updatePaginationDots(1);
+
       // Listen for animation start and end
       $(".flipbook").bind("start", function() {
         isAnimating = true;
@@ -393,7 +401,7 @@
         }
       });
 
-      // Hide/show arrows based on current page
+      // Hide/show arrows based on current page and update pagination
       $(".flipbook").bind("turned", function(event, page, view) {
         if (page == 1) {
           $('#prevBtn').fadeOut();
@@ -406,6 +414,9 @@
         } else {
           $('#nextBtn').fadeIn();
         }
+
+        // Update pagination dots after turn completes
+        updatePaginationDots(page);
       });
 
       // Initial state
@@ -418,6 +429,51 @@
         resizeTimeout = setTimeout(function() {
           location.reload();
         }, 500);
+      });
+    }
+
+    // Generate pagination dots
+    function generatePaginationDots(totalPages) {
+      const paginationContainer = $('#paginationDots');
+      paginationContainer.empty();
+      
+      for (let i = 1; i <= totalPages; i++) {
+        const dot = $('<div class="pagination-dot"></div>');
+        dot.attr('data-page', i);
+        paginationContainer.append(dot);
+      }
+    }
+
+    // Update pagination dots based on current page
+    function updatePaginationDots(currentPage) {
+      const dots = $('.pagination-dot');
+      const totalPages = dots.length;
+      const maxVisibleDots = 7;
+      
+      dots.each(function(index) {
+        const pageNum = index + 1;
+        const distance = Math.abs(pageNum - currentPage);
+        const dot = $(this);
+        
+        // Remove all classes
+        dot.removeClass('active near far hidden');
+        
+        // Only show dots within distance of 3 from current page
+        if (distance > 3) {
+          dot.addClass('hidden');
+          return;
+        }
+        
+        // Apply size classes based on distance from current page
+        if (distance === 0) {
+          dot.addClass('active');
+        } else if (distance === 1) {
+          dot.addClass('near');
+        } else if (distance === 2) {
+          dot.addClass('far');
+        } else if (distance === 3) {
+          dot.addClass('far');
+        }
       });
     }
 
