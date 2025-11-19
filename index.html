@@ -4,10 +4,37 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  
+  <!-- Primary Meta Tags -->
+  <title>Salome Shengelaia - Portfolio</title>
+  <meta name="title" content="Salome Shengelaia - Portfolio">
+  <meta name="description" content="Explore Salome Shengelaia's creative portfolio - An interactive digital flipbook showcasing design work and projects.">
+  <meta name="author" content="Salome Shengelaia">
+  <meta name="keywords" content="portfolio, design, creative, Salome Shengelaia">
+
+  <!-- Open Graph / Facebook -->
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://yourusername.github.io/portfolio/">
+  <meta property="og:title" content="Salome Shengelaia - Portfolio">
+  <meta property="og:description" content="Explore Salome Shengelaia's creative portfolio - An interactive digital flipbook showcasing design work and projects.">
+  <meta property="og:image" content="https://yourusername.github.io/portfolio/salome.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="Salome Shengelaia Portfolio">
+
+  <!-- Twitter -->
+  <meta property="twitter:card" content="summary_large_image">
+  <meta property="twitter:url" content="https://yourusername.github.io/portfolio/">
+  <meta property="twitter:title" content="Salome Shengelaia - Portfolio">
+  <meta property="twitter:description" content="Explore Salome Shengelaia's creative portfolio - An interactive digital flipbook showcasing design work and projects.">
+  <meta property="twitter:image" content="https://yourusername.github.io/portfolio/salome.png">
+
+  <!-- LinkedIn specific -->
+  <meta property="og:locale" content="en_US">
+  <meta property="article:author" content="Salome Shengelaia">
+
   <link rel="stylesheet" href="style.css" />
   <link rel="icon" type="image/png" href="salome.png" />
-
-  <title>Salome Shengelaia Portfolio</title>
 </head>
 
 <body>
@@ -49,18 +76,14 @@
     let isAnimating = false;
     let pdfDocument = null;
     let renderQueue = new Map();
-    let pageCache = new Map();
-    
-    // Detect mobile device
-    const isMobileDevice = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    
-    // Aggressive cache management for mobile
-    const MAX_CACHE_SIZE = isMobileDevice ? 10 : 12; // Smaller cache on mobile
-    const RENDER_QUALITY = isMobileDevice ? 3.0 : 3.0; // Lower quality on mobile to prevent crashes
+    let pageCanvases = new Map(); // Store all rendered canvases permanently
+
+    // FULL QUALITY - NO COMPROMISES
+    const RENDER_QUALITY = 3.0; // Maximum quality for all devices
     const pixelRatio = window.devicePixelRatio || 1;
 
-    // Memory tracking
-    let memoryWarningShown = false;
+    console.log('🎨 FULL QUALITY MODE: All pages will load at maximum quality');
+    console.log(`📊 Render Quality: ${RENDER_QUALITY}x, Pixel Ratio: ${pixelRatio}x`);
 
     // Update loading progress
     function updateProgress(current, total) {
@@ -93,74 +116,7 @@
       return pageDiv;
     }
 
-    // Aggressive cache clearing for mobile
-    function clearOldCache(currentPage) {
-      const keepRange = isMobileDevice ? 2 : 3; // Keep fewer pages on mobile
-      
-      if (pageCache.size > MAX_CACHE_SIZE || isMobileDevice) {
-        const pagesToKeep = new Set();
-        
-        // Only keep pages very close to current view
-        for (let i = Math.max(1, currentPage - keepRange); i <= Math.min(totalPagesCount, currentPage + keepRange); i++) {
-          pagesToKeep.add(i);
-        }
-
-        const pagesCleared = [];
-        for (let [pageNum, canvas] of pageCache.entries()) {
-          if (!pagesToKeep.has(pageNum)) {
-            // Clear canvas completely
-            const ctx = canvas.getContext('2d');
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            canvas.width = 0;
-            canvas.height = 0;
-            pageCache.delete(pageNum);
-            pagesCleared.push(pageNum);
-          }
-        }
-        
-        if (pagesCleared.length > 0) {
-          console.log(`🗑️ Cleared ${pagesCleared.length} pages from cache: [${pagesCleared.join(', ')}]`);
-          console.log(`📊 Cache size now: ${pageCache.size}/${MAX_CACHE_SIZE}`);
-          
-          // Force garbage collection hint (browsers may ignore)
-          if (window.gc) {
-            window.gc();
-          }
-        }
-      }
-    }
-
-    // Clear a specific page from DOM and cache
-    function clearPageFromDOM(pageNum) {
-      const pageDiv = $(`.page[data-page-num="${pageNum}"]`);
-      if (pageDiv.length && !pageDiv.hasClass('page-loading')) {
-        console.log(`🧹 Clearing page ${pageNum} from DOM`);
-        pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #666;"><div><div class="loader" style="margin: 0 auto 20px;"></div><p>Loading page...</p></div></div>');
-        pageDiv.addClass('page-loading');
-        loadedPages.delete(pageNum);
-      }
-    }
-
-    // Check memory and warn user
-    function checkMemory() {
-      if (isMobileDevice && performance.memory) {
-        const usedMemory = performance.memory.usedJSHeapSize / 1024 / 1024;
-        const totalMemory = performance.memory.totalJSHeapSize / 1024 / 1024;
-        const percentage = (usedMemory / totalMemory) * 100;
-        
-        console.log(`💾 Memory: ${usedMemory.toFixed(2)}MB / ${totalMemory.toFixed(2)}MB (${percentage.toFixed(1)}%)`);
-        
-        if (percentage > 80 && !memoryWarningShown) {
-          console.warn('⚠️ High memory usage detected, clearing more aggressively');
-          memoryWarningShown = true;
-          // Clear more pages
-          const currentPage = $(".flipbook").turn("page");
-          clearOldCache(currentPage);
-        }
-      }
-    }
-
-    // Render a single page with full quality and safety checks
+    // Render a single page at MAXIMUM QUALITY
     async function renderPage(pdf, pageNum, pageDiv, priority = false) {
       // Check if already rendering
       if (renderQueue.has(pageNum)) {
@@ -168,22 +124,21 @@
         return renderQueue.get(pageNum);
       }
 
-      // Check cache first
-      if (pageCache.has(pageNum) && !pageDiv.hasClass('page-loading')) {
-        console.log(`✅ Page ${pageNum} loaded from cache`);
+      // Check if already rendered
+      if (pageCanvases.has(pageNum)) {
+        console.log(`✅ Page ${pageNum} already rendered, using existing canvas`);
+        const existingCanvas = pageCanvases.get(pageNum);
+        pageDiv.empty();
+        pageDiv.removeClass('page-loading');
+        pageDiv.append(existingCanvas.cloneNode(true));
+        loadedPages.add(pageNum);
+        updateBackgroundLoading(loadedPages.size, totalPagesCount);
         return true;
       }
 
       const renderPromise = (async () => {
         try {
-          console.log(`🎨 Starting render for page ${pageNum} (priority: ${priority}, mobile: ${isMobileDevice})`);
-          
-          // Clear old cache before rendering new page
-          const currentPage = $(".flipbook").turn("page");
-          clearOldCache(currentPage);
-          
-          // Check memory before rendering
-          checkMemory();
+          console.log(`🎨 Starting MAXIMUM QUALITY render for page ${pageNum}`);
           
           const page = await pdf.getPage(pageNum);
           
@@ -191,8 +146,8 @@
           const canvas = document.createElement('canvas');
           const context = canvas.getContext('2d', { 
             alpha: false,
-            willReadFrequently: false,
-            desynchronized: true
+            desynchronized: true,
+            willReadFrequently: false
           });
           
           // Get the viewport at scale 1
@@ -201,44 +156,46 @@
           // Calculate scale to fit the page
           const displayScale = Math.min(594 / viewport.width, 840 / viewport.height);
           
-          // Apply quality settings
-          const effectivePixelRatio = isMobileDevice ? Math.min(pixelRatio, 2) : pixelRatio; // Cap at 2x on mobile
-          const renderScale = displayScale * RENDER_QUALITY * effectivePixelRatio;
+          // MAXIMUM QUALITY - Full pixel ratio support
+          const renderScale = displayScale * RENDER_QUALITY * pixelRatio;
           
-          console.log(`📐 Page ${pageNum}: viewport=${viewport.width}x${viewport.height}, scale=${renderScale.toFixed(2)}`);
+          console.log(`📐 Page ${pageNum}:`);
+          console.log(`   - Original: ${viewport.width}x${viewport.height}`);
+          console.log(`   - Render Scale: ${renderScale.toFixed(2)}x`);
           
           const scaledViewport = page.getViewport({ scale: renderScale });
           
-          // Set canvas size
+          // Set canvas size to maximum quality
           canvas.width = scaledViewport.width;
           canvas.height = scaledViewport.height;
           
-          console.log(`🖼️ Page ${pageNum}: canvas=${canvas.width}x${canvas.height} (${(canvas.width * canvas.height * 4 / 1024 / 1024).toFixed(2)}MB)`);
+          const canvasSizeMB = (canvas.width * canvas.height * 4 / 1024 / 1024).toFixed(2);
+          console.log(`🖼️ Page ${pageNum}: Canvas ${canvas.width}x${canvas.height} (${canvasSizeMB}MB)`);
           
           // Set display size
           canvas.style.width = '100%';
           canvas.style.height = '100%';
           canvas.style.display = 'block';
           
-          // Full quality render context
+          // MAXIMUM QUALITY render settings
           const renderContext = {
             canvasContext: context,
             viewport: scaledViewport,
             intent: 'display',
             renderInteractiveForms: true,
-            enableWebGL: !isMobileDevice, // Disable WebGL on mobile for stability
+            enableWebGL: true, // Enable for better performance
             background: 'white',
             imageLayer: null,
             annotationMode: pdfjsLib.AnnotationMode.ENABLE_FORMS,
             optionalContentConfigPromise: null
           };
 
-          console.log(`⚙️ Rendering page ${pageNum}...`);
+          console.log(`⚙️ Rendering page ${pageNum} at MAXIMUM QUALITY...`);
           
           const renderTask = page.render(renderContext);
           
-          // Longer timeout for mobile
-          const timeout = isMobileDevice ? 90000 : 60000;
+          // Extended timeout for large images
+          const timeout = 120000; // 2 minutes
           
           await Promise.race([
             renderTask.promise,
@@ -247,10 +204,10 @@
             )
           ]);
           
-          console.log(`✅ Page ${pageNum} rendered successfully`);
+          console.log(`✅ Page ${pageNum} rendered successfully at MAXIMUM QUALITY`);
           
-          // Store in cache
-          pageCache.set(pageNum, canvas.cloneNode(true));
+          // Store canvas permanently - NEVER delete
+          pageCanvases.set(pageNum, canvas.cloneNode(true));
           
           // Replace placeholder content with canvas
           pageDiv.empty();
@@ -263,22 +220,18 @@
           // Update background loading indicator
           updateBackgroundLoading(loadedPages.size, totalPagesCount);
           
-          // Cleanup page to free memory
+          // Cleanup page object (not canvas)
           page.cleanup();
           
           renderQueue.delete(pageNum);
           
-          console.log(`✓ Page ${pageNum} complete (cache: ${pageCache.size}/${MAX_CACHE_SIZE})`);
-          
-          // Check memory after render
-          checkMemory();
+          console.log(`✓ Page ${pageNum} complete. Total rendered: ${pageCanvases.size}/${totalPagesCount}`);
           
           return true;
         } catch (error) {
           console.error(`❌ Error rendering page ${pageNum}:`, error);
-          console.error('Error details:', error.message, error.stack);
+          console.error('Error details:', error.message);
           
-          // Show detailed error
           pageDiv.html(`<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444; padding: 20px; text-align: center;">
             <div>
               <p style="font-weight: bold; font-size: 16px;">Error loading page ${pageNum}</p>
@@ -296,20 +249,21 @@
       return renderPromise;
     }
 
-    // Load and render PDF
+    // Load and render PDF at MAXIMUM QUALITY
     async function loadPDF() {
       try {
-        console.log('📄 Loading PDF with optimized settings for', isMobileDevice ? 'MOBILE' : 'DESKTOP');
+        console.log('📄 Loading PDF with MAXIMUM QUALITY settings - NO RESTRICTIONS');
+        console.log('⚠️ All pages will be kept in memory - NO cache clearing');
         
         const loadingTask = pdfjsLib.getDocument({
           url: pdfPath,
-          maxImageSize: -1, // Unlimited
+          maxImageSize: -1, // UNLIMITED image size
           cMapUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/cmaps/',
           cMapPacked: true,
-          disableAutoFetch: false,
+          disableAutoFetch: false, // Fetch everything
           disableStream: false,
-          disableFontFace: false,
-          useSystemFonts: false,
+          disableFontFace: false, // Enable all fonts
+          useSystemFonts: false, // Use embedded fonts
           standardFontDataUrl: 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/standard_fonts/',
           isEvalSupported: true,
           useWorkerFetch: true,
@@ -326,13 +280,13 @@
         pdfDocument = await loadingTask.promise;
         totalPagesCount = pdfDocument.numPages;
         
-        console.log(`✅ PDF loaded: ${totalPagesCount} pages`);
-        console.log(`📊 Settings: Quality=${RENDER_QUALITY}x, PixelRatio=${pixelRatio}x, Cache=${MAX_CACHE_SIZE}`);
+        console.log(`✅ PDF loaded successfully: ${totalPagesCount} pages`);
+        console.log(`📊 MAXIMUM QUALITY: ${RENDER_QUALITY}x render, ${pixelRatio}x pixel ratio`);
         
         const flipbook = $('.flipbook');
         const lastHard = flipbook.find('.hard');
         
-        // Create placeholders
+        // Create placeholders for all pages
         for (let pageNum = 1; pageNum <= totalPagesCount; pageNum++) {
           const pageDiv = createPlaceholderPage();
           pageDiv.attr('data-page-num', pageNum);
@@ -344,34 +298,20 @@
         
         $('#bgLoadingIndicator').fadeIn();
         
-        // Render fewer initial pages on mobile
-        const initialPages = isMobileDevice ? 3 : 4;
-        console.log(`🎨 Rendering initial ${initialPages} pages...`);
+        // Render first 4 pages at maximum quality
+        console.log('🎨 Rendering initial 4 pages at MAXIMUM QUALITY...');
         
-        for (let pageNum = 1; pageNum <= Math.min(initialPages, totalPagesCount); pageNum++) {
+        for (let pageNum = 1; pageNum <= Math.min(4, totalPagesCount); pageNum++) {
           const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
           await renderPage(pdfDocument, pageNum, pageDiv, true);
-          await new Promise(resolve => setTimeout(resolve, 400));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
         
-        console.log('✅ Initial pages loaded');
+        console.log('✅ Initial pages loaded at MAXIMUM QUALITY');
         
-        // Handle page turning with aggressive cleanup
+        // Load pages on demand when turning
         $(".flipbook").bind("turning", async function(event, page, view) {
-          console.log(`📖 Turning to page ${page}, view: [${view.join(', ')}]`);
-          
-          // Aggressive cleanup on mobile
-          if (isMobileDevice) {
-            // Clear pages far from current view
-            for (let pageNum = 1; pageNum <= totalPagesCount; pageNum++) {
-              if (Math.abs(pageNum - page) > 3 && loadedPages.has(pageNum)) {
-                clearPageFromDOM(pageNum);
-              }
-            }
-          }
-          
-          // Clear cache
-          clearOldCache(page);
+          console.log(`📖 Turning to page ${page}, visible pages: [${view.join(', ')}]`);
           
           const pagesToLoad = [];
           
@@ -379,21 +319,20 @@
           view.forEach(p => {
             if (p && !loadedPages.has(p) && !renderQueue.has(p)) {
               pagesToLoad.push({ page: p, priority: 10 });
+              console.log(`   🔥 Need to load visible page ${p}`);
             }
           });
           
-          // Preload next pages (fewer on mobile)
-          const preloadNext = isMobileDevice ? 2 : 3;
-          for (let i = 1; i <= preloadNext; i++) {
+          // Preload next 4 pages
+          for (let i = 1; i <= 4; i++) {
             const nextPage = page + i;
             if (nextPage <= totalPagesCount && !loadedPages.has(nextPage) && !renderQueue.has(nextPage)) {
               pagesToLoad.push({ page: nextPage, priority: 7 });
             }
           }
           
-          // Preload previous pages
-          const preloadPrev = isMobileDevice ? 1 : 2;
-          for (let i = 1; i <= preloadPrev; i++) {
+          // Preload previous 2 pages
+          for (let i = 1; i <= 2; i++) {
             const prevPage = page - i;
             if (prevPage >= 1 && !loadedPages.has(prevPage) && !renderQueue.has(prevPage)) {
               pagesToLoad.push({ page: prevPage, priority: 5 });
@@ -402,12 +341,13 @@
           
           pagesToLoad.sort((a, b) => b.priority - a.priority);
           
-          // Load pages with longer delays on mobile
+          // Load all pages at maximum quality
           for (let { page: pageNum, priority } of pagesToLoad) {
             const pageDiv = flipbook.find(`.page[data-page-num="${pageNum}"]`);
             if (pageDiv.hasClass('page-loading')) {
               await renderPage(pdfDocument, pageNum, pageDiv, priority >= 8);
-              const delay = isMobileDevice ? (priority >= 8 ? 300 : 500) : (priority >= 8 ? 200 : 300);
+              // Delay to prevent browser freeze
+              const delay = priority >= 8 ? 300 : 500;
               await new Promise(resolve => setTimeout(resolve, delay));
             }
           }
@@ -444,16 +384,21 @@
       flipbookWidth = Math.min(flipbookWidth, originalWidth);
       flipbookHeight = Math.min(flipbookHeight, originalHeight);
       
-      console.log('🎬 Initializing flipbook:', { width: flipbookWidth, height: flipbookHeight });
+      console.log('🎬 Initializing flipbook:', { 
+        width: flipbookWidth, 
+        height: flipbookHeight,
+        quality: RENDER_QUALITY,
+        pixelRatio: pixelRatio
+      });
       
       $(".flipbook").turn({
         width: flipbookWidth,
         height: flipbookHeight,
         autoCenter: true,
-        acceleration: !isMobileDevice, // Disable on mobile
-        gradients: !isMobileDevice, // Disable on mobile
+        acceleration: true, // Enable for all devices
+        gradients: true, // Enable for all devices
         display: 'double',
-        duration: isMobileDevice ? 400 : 600
+        duration: 600
       });
 
       flipbookInitialized = true;
@@ -486,14 +431,10 @@
         var page = $(".flipbook").turn("page");
         if (page > 1) {
           isAnimating = true;
-          if (!isMobileDevice) {
-            $(".flipbook").turn("peel", "bl", true);
-            setTimeout(function() {
-              $(".flipbook").turn("previous");
-            }, 40);
-          } else {
+          $(".flipbook").turn("peel", "bl", true);
+          setTimeout(function() {
             $(".flipbook").turn("previous");
-          }
+          }, 40);
         }
       });
 
@@ -503,14 +444,10 @@
         var pages = $(".flipbook").turn("pages");
         if (page < pages) {
           isAnimating = true;
-          if (!isMobileDevice) {
-            $(".flipbook").turn("peel", "br", true);
-            setTimeout(function() {
-              $(".flipbook").turn("next");
-            }, 40);
-          } else {
+          $(".flipbook").turn("peel", "br", true);
+          setTimeout(function() {
             $(".flipbook").turn("next");
-          }
+          }, 40);
         }
       });
 
@@ -542,8 +479,7 @@
       if (pdfDocument) {
         pdfDocument.destroy();
       }
-      pageCache.clear();
-      renderQueue.clear();
+      // Don't clear pageCanvases - keep everything in memory
     });
 
     $(document).ready(function() {
