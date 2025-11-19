@@ -29,6 +29,16 @@
   <button class="nav-arrow prev-arrow" id="prevBtn">‹</button>
   <button class="nav-arrow next-arrow" id="nextBtn">›</button>
 
+  <!-- Download Button -->
+  <button class="download-btn" id="downloadBtn" title="Download Portfolio PDF">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="7 10 12 15 17 10"></polyline>
+      <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+    <div class="download-progress" id="downloadProgress"></div>
+  </button>
+
   <div class="flipbook">
     <!-- Dynamic pages will be inserted here -->
     <div class="hard"></div>
@@ -137,6 +147,71 @@
         console.error(`Error rendering page ${pageNum}:`, error);
         pageDiv.html('<div style="display: flex; align-items: center; justify-content: center; height: 100%; color: #ff4444;"><p>Error loading page</p></div>');
         return false;
+      }
+    }
+
+    // Download PDF with progress
+    async function downloadPDF() {
+      const downloadBtn = $('#downloadBtn');
+      const progressBar = $('#downloadProgress');
+      
+      // Disable button during download
+      downloadBtn.addClass('downloading');
+      downloadBtn.prop('disabled', true);
+      
+      try {
+        const response = await fetch(pdfPath);
+        
+        if (!response.ok) {
+          throw new Error('Download failed');
+        }
+        
+        const contentLength = response.headers.get('content-length');
+        const total = parseInt(contentLength, 10);
+        
+        let loaded = 0;
+        const reader = response.body.getReader();
+        const chunks = [];
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          
+          if (done) break;
+          
+          chunks.push(value);
+          loaded += value.length;
+          
+          // Update progress bar
+          if (total) {
+            const percentage = (loaded / total) * 100;
+            progressBar.css('width', percentage + '%');
+          }
+        }
+        
+        // Create blob and download
+        const blob = new Blob(chunks, { type: 'application/pdf' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'Salome_Shengelaia_Portfolio.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        // Success animation
+        setTimeout(() => {
+          progressBar.css('width', '0%');
+          downloadBtn.removeClass('downloading');
+          downloadBtn.prop('disabled', false);
+        }, 1000);
+        
+      } catch (error) {
+        console.error('Download error:', error);
+        alert('Failed to download PDF. Please try again.');
+        progressBar.css('width', '0%');
+        downloadBtn.removeClass('downloading');
+        downloadBtn.prop('disabled', false);
       }
     }
 
@@ -349,6 +424,13 @@
     // Load PDF when page is ready
     $(document).ready(function() {
       loadPDF();
+      
+      // Download button click handler
+      $('#downloadBtn').click(function() {
+        if (!$(this).hasClass('downloading')) {
+          downloadPDF();
+        }
+      });
     });
   </script>
 

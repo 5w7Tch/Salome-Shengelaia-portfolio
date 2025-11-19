@@ -160,6 +160,109 @@ body {
     opacity: 0.5;
 }
 
+/* Download Button */
+.download-btn {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: transparent;
+    border: none;
+    color: #fff;
+    width: 50px;
+    height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.4s ease;
+    z-index: 10000;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.download-btn svg {
+    width: 28px;
+    height: 28px;
+    transition: all 0.4s ease;
+}
+
+.download-btn:hover {
+    transform: scale(1.2);
+}
+
+.download-btn:hover svg {
+    filter: drop-shadow(0 0 8px rgba(255, 255, 255, 0.8))
+            drop-shadow(0 0 16px rgba(255, 255, 255, 0.6));
+}
+
+.download-btn:active {
+    transform: scale(1.0);
+}
+
+.download-btn:active svg {
+    filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.5));
+}
+
+.download-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.download-btn.downloading:hover {
+    transform: scale(1.0);
+}
+
+/* Download Progress Bar */
+.download-progress {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 60px;
+    height: 2px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    overflow: hidden;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.download-btn.downloading .download-progress {
+    opacity: 1;
+}
+
+.download-progress::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, 
+        rgba(255, 255, 255, 0.6) 0%, 
+        rgba(255, 255, 255, 1) 50%, 
+        rgba(255, 255, 255, 0.6) 100%);
+    border-radius: 2px;
+    transition: width 0.3s ease;
+    box-shadow: 0 0 8px rgba(255, 255, 255, 0.8),
+                0 0 16px rgba(255, 255, 255, 0.4);
+}
+
+.download-btn.downloading .download-progress::after {
+    animation: progressGlow 1.5s ease-in-out infinite;
+}
+
+@keyframes progressGlow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(255, 255, 255, 0.8),
+                    0 0 16px rgba(255, 255, 255, 0.4);
+    }
+    50% {
+        box-shadow: 0 0 12px rgba(255, 255, 255, 1),
+                    0 0 24px rgba(255, 255, 255, 0.6);
+    }
+}
+
 /* Remove any shadows or borders from turn.js */
 .flipbook .page,
 .flipbook .own-size,
@@ -192,6 +295,18 @@ body {
     
     .next-arrow {
         right: 20px;
+    }
+    
+    .download-btn {
+        width: 45px;
+        height: 45px;
+        bottom: 25px;
+        right: 25px;
+    }
+    
+    .download-btn svg {
+        width: 24px;
+        height: 24px;
     }
     
     .flipbook .hard {
@@ -234,6 +349,22 @@ body {
     
     .next-arrow {
         right: 10px;
+    }
+    
+    .download-btn {
+        width: 42px;
+        height: 42px;
+        bottom: 20px;
+        right: 20px;
+    }
+    
+    .download-btn svg {
+        width: 22px;
+        height: 22px;
+    }
+    
+    .download-progress {
+        width: 50px;
     }
     
     .flipbook .hard {
@@ -281,6 +412,22 @@ body {
         right: 5px;
     }
     
+    .download-btn {
+        width: 38px;
+        height: 38px;
+        bottom: 15px;
+        right: 15px;
+    }
+    
+    .download-btn svg {
+        width: 20px;
+        height: 20px;
+    }
+    
+    .download-progress {
+        width: 45px;
+    }
+    
     .flipbook .hard {
         font-size: 18px;
         letter-spacing: 2px;
@@ -313,5 +460,22 @@ body {
         width: 40px;
         top: 5px;
         left: 5px;
+    }
+    
+    .download-btn {
+        width: 35px;
+        height: 35px;
+        bottom: 10px;
+        right: 10px;
+    }
+    
+    .download-btn svg {
+        width: 18px;
+        height: 18px;
+    }
+    
+    .download-progress {
+        width: 40px;
+        bottom: -6px;
     }
 }
