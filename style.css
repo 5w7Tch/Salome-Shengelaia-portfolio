@@ -30,6 +30,7 @@ body {
     /* Dimensions are set dynamically by JavaScript */
     max-width: 100%;
     max-height: 100%;
+    position: relative;
 }
 
 .flipbook .hard {
@@ -66,8 +67,27 @@ body {
     gap: 0;
     border: none !important;
     padding: 0;
-    margin: 0;
+    margin: 0 !important;
     overflow: hidden;
+    position: relative;
+}
+
+/* Remove any spacing between pages */
+.flipbook > div {
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+}
+
+.flipbook .even,
+.flipbook .odd {
+    margin: 0 !important;
+}
+
+/* Force pages to be adjacent with no gap */
+.turn-page {
+    margin: 0 !important;
+    padding: 0 !important;
 }
 
 .page canvas {
@@ -323,8 +343,49 @@ body {
 /* Remove any shadows or borders from turn.js */
 .flipbook .page,
 .flipbook .own-size,
-.flipbook > div {
+.flipbook > div,
+.flipbook .shadow,
+.flipbook .page-wrapper,
+.flipbook div,
+.turn-page,
+.turn-page-wrapper {
     box-shadow: none !important;
+    border: none !important;
+    outline: none !important;
+    margin: 0 !important;
+}
+
+/* Remove gradient overlays from turn.js */
+.flipbook .gradient,
+.turn-gradient {
+    display: none !important;
+    opacity: 0 !important;
+}
+
+/* Remove any dividers or separators */
+.flipbook::before,
+.flipbook::after,
+.flipbook .page::before,
+.flipbook .page::after {
+    display: none !important;
+}
+
+/* Additional turn.js shadow removal and spacing */
+.flipbook * {
+    box-shadow: none !important;
+}
+
+/* Ensure no letter spacing or word spacing creates gaps */
+.flipbook .own-size {
+    letter-spacing: 0 !important;
+    word-spacing: 0 !important;
+}
+
+/* Force adjacent pages to have no gap */
+.flipbook .p1, .flipbook .p2, .flipbook .p3, .flipbook .p4,
+.flipbook .p5, .flipbook .p6, .flipbook .p7, .flipbook .p8 {
+    margin: 0 !important;
+    padding: 0 !important;
     border: none !important;
 }
 
